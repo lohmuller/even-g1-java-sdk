@@ -205,15 +205,22 @@ public class Connection {
      */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private void enableRxNotification() {
-        gatt.setCharacteristicNotification(rxChar, true);
+        boolean notificationSet = gatt.setCharacteristicNotification(rxChar, true);
+        if (!notificationSet) {
+            throw new BleInitializationException("Failed to set notification for RX characteristic");
+        }
 
         BluetoothGattDescriptor descriptor = rxChar.getDescriptor(clientCharacteristicConfigUuid);
-        if (descriptor != null) {
-            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-            gatt.writeDescriptor(descriptor);
+        if (descriptor == null) {
+            throw new BleInitializationException("Failed to get descriptor for RX characteristic");
         }
+        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+        gatt.writeDescriptor(descriptor);
     }
 
+    /**
+     * Listener for the RX data
+     */
     public interface OnRxDataListener {
         void onDataReceived(byte[] data);
     }

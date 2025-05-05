@@ -146,15 +146,15 @@ public class EvenOs_1_5_0 implements EvenOsApi {
             (byte) 0x23,
         };
         byte[] responseHeader = new byte[] {
-            (byte) 0x6E,
-            (byte) 0x65,
-            (byte) 0x74,
-            (byte) 0x20,
-            (byte) 0x62,
-            (byte) 0x75,
-            (byte) 0x69,
-            (byte) 0x6C,
-            (byte) 0x64
+            (byte) 0x6E, //n
+            (byte) 0x65, //e
+            (byte) 0x74, //t
+            (byte) 0x20, //
+            (byte) 0x62, //b
+            (byte) 0x75, //u
+            (byte) 0x69, //i
+            (byte) 0x6C, //l
+            (byte) 0x64  //d
         };
         return new EvenOsCommand<String>(requestBytes, responseHeader, EvenOsApi.Sides.BOTH, (byte[] data) -> {
             if (data == null || data.length < 4) return "unknown";
