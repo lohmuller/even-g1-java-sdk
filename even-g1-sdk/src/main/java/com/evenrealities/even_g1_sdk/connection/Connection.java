@@ -32,6 +32,7 @@ import android.bluetooth.BluetoothGattDescriptor;
 import android.bluetooth.BluetoothGattService;
 
 import java.util.UUID;
+import java.util.Arrays;
 
 import com.evenrealities.even_g1_sdk.connection.ConnectionConfig;
 import com.evenrealities.even_g1_sdk.exception.BleInitializationException;
@@ -52,7 +53,7 @@ public class Connection {
     private final UUID clientCharacteristicConfigUuid;
     private final int mtu;
 
-    private static final String TAG = "BLE";
+    private static final String TAG = "EVEN_G!_Connection";
     
 
     /**
@@ -62,9 +63,12 @@ public class Connection {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
+            Log.d(TAG, "onConnectionStateChange: status=" + status + ", newState=" + newState);
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                Log.i(TAG, "onConnectionStateChange: Connected, requesting MTU " + mtu);
                 gatt.requestMtu(mtu);
             } else {
+                Log.w(TAG, "onConnectionStateChange: Disconnected");
                 Connection.this.isInitialized = false;
             }
         }
@@ -73,10 +77,12 @@ public class Connection {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
+            Log.d(TAG, "onMtuChanged: mtu=" + mtu + ", status=" + status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.i(TAG, "onMtuChanged: Success, discovering services");
                 gatt.discoverServices(); 
             } else {
-                Log.e(TAG, "Error while negotiating MTU (status=" + status + ")");
+                Log.e(TAG, "onMtuChanged: Error negotiating MTU (status=" + status + ")");
                 gatt.disconnect();
                 gatt.close();
             }
@@ -86,15 +92,21 @@ public class Connection {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
+            Log.d(TAG, "onServicesDiscovered: status=" + status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                Log.i(TAG, "onServicesDiscovered: Success, initializing");
                 new Handler(Looper.getMainLooper()).post(() -> init());               
+            } else {
+                Log.e(TAG, "onServicesDiscovered: Failed");
             }
         }
 
         @Override   
         public void onCharacteristicChanged(BluetoothGatt gatt, BluetoothGattCharacteristic characteristic) {
+            Log.d(TAG, "onCharacteristicChanged: uuid=" + characteristic.getUuid());
             if (rxChar != null && characteristic.getUuid().equals(rxChar.getUuid())) {
                 byte[] data = characteristic.getValue();
+                Log.d(TAG, "onCharacteristicChanged: Data received: " + Arrays.toString(data));
                 if (rxDataListener != null) {
                     rxDataListener.onDataReceived(data);
                 }
@@ -107,6 +119,7 @@ public class Connection {
     public Connection(@NonNull Context context, @NonNull BluetoothDevice device, @NonNull ConnectionConfig config) {
         this.context = context.getApplicationContext();
         this.device = device;
+        Log.i(TAG, "Connection: Initializing BLE connection");
         this.gatt = device.connectGatt(context, false, internalCallback);
         this.clientCharacteristicConfigUuid = config.clientCharacteristicConfigUuid;
         this.uartServiceUuid = config.uartServiceUuid;
@@ -158,8 +171,9 @@ public class Connection {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public void reconnect() {
+        Log.i(TAG, "reconnect: Reconnecting BLE");
         if (device == null || context == null) {
-            Log.w(TAG, "Not possible to reconnect: context or device are null");
+            Log.w(TAG, "reconnect: Device or context is null");
             return;
         }
 
@@ -171,6 +185,7 @@ public class Connection {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public void disconnect() {
+        Log.i(TAG, "disconnect: Disconnecting BLE");
         if (gatt != null) {
             gatt.disconnect();
             gatt.close();
@@ -187,9 +202,14 @@ public class Connection {
      */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public boolean send(byte[] data) {
-        if (txChar == null || gatt == null) return false;
+        if (txChar == null || gatt == null) {
+            Log.w(TAG, "send: TX characteristic or GATT is null, cannot send");
+            return false;
+        }
         txChar.setValue(data);
-        return gatt.writeCharacteristic(txChar);
+        boolean result = gatt.writeCharacteristic(txChar);
+        Log.d(TAG, "send: Data sent: " + Arrays.toString(data) + ", result=" + result);
+        return result;
     }
 
     /**
@@ -197,6 +217,7 @@ public class Connection {
      * @param listener
      */
     public void setOnRxDataListener(OnRxDataListener listener) {
+        Log.i(TAG, "setOnRxDataListener: Listener set");
         this.rxDataListener = listener;
     }
 
@@ -204,18 +225,20 @@ public class Connection {
      * Enable the RX notification (response from the glasses)
      */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    private void enableRxNotification() {
+    private boolean enableRxNotification() {
+        if (gatt == null || rxChar == null) {
+            Log.e(TAG, "enableRxNotification: GATT or RX characteristic is null");
+            return false;
+        }
         boolean notificationSet = gatt.setCharacteristicNotification(rxChar, true);
-        if (!notificationSet) {
-            throw new BleInitializationException("Failed to set notification for RX characteristic");
-        }
-
         BluetoothGattDescriptor descriptor = rxChar.getDescriptor(clientCharacteristicConfigUuid);
-        if (descriptor == null) {
-            throw new BleInitializationException("Failed to get descriptor for RX characteristic");
+        boolean descriptorWritten = false;
+        if (descriptor != null) {
+            descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
+            descriptorWritten = gatt.writeDescriptor(descriptor);
         }
-        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);
-        gatt.writeDescriptor(descriptor);
+        Log.d(TAG, "enableRxNotification: notificationSet=" + notificationSet + ", descriptorWritten=" + descriptorWritten);
+        return notificationSet && descriptorWritten;
     }
 
     /**

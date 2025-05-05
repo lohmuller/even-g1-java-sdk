@@ -24,6 +24,7 @@ import java.util.function.BiConsumer;
 import android.Manifest;
 import android.content.Context;
 import android.bluetooth.BluetoothDevice;
+import android.util.Log;
 
 import androidx.annotation.RequiresPermission;
 
@@ -36,6 +37,8 @@ import com.evenrealities.even_g1_sdk.api.EvenOsEventListener;
 
 
 public class ConnectionManager {
+
+    private static final String TAG = "EVEN_G!_ConnectionManager";
 
     private final Connection leftConnection;
     private final Connection rightConnection;
@@ -71,6 +74,7 @@ public class ConnectionManager {
     }
 
     public void init() {
+        Log.i(TAG, "init: Setting up RX listeners for LEFT and RIGHT connections.");
         this.leftConnection.setOnRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.LEFT));
         this.rightConnection.setOnRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.RIGHT));
     }
@@ -78,6 +82,7 @@ public class ConnectionManager {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public void destroy() {
+        Log.i(TAG, "destroy: Disconnecting both connections.");
         this.leftConnection.disconnect();
         this.rightConnection.disconnect();
     }
@@ -93,20 +98,25 @@ public class ConnectionManager {
      */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public <T> CompletableFuture<T> sendCommand(EvenOsCommand<T> sendCommand) {
+        Log.d(TAG, "sendCommand: Attempting to send command: " + sendCommand + ", sides: " + sendCommand.sides);
         if (!this.commandQueue.isAvailable(sendCommand)) {
+            Log.w(TAG, "sendCommand: Command not available (conflict in queue): " + sendCommand);
             //@TODO retry logic, create a sleep between retries
             return null;
         }
         for (byte[] packet : sendCommand.requestPackets) {
             this.commandQueue.add(sendCommand);
+            Log.d(TAG, "sendCommand: Command added to queue: " + sendCommand);
         }
         if (sendCommand.sides == EvenOsApi.Sides.LEFT || sendCommand.sides == EvenOsApi.Sides.BOTH) {
             for (byte[] packet : sendCommand.requestPackets) {
+                Log.d(TAG, "sendCommand: Sending packet to LEFT: " + Arrays.toString(packet));
                 this.leftConnection.send(packet);
             }
         }
         if (sendCommand.sides == EvenOsApi.Sides.RIGHT || sendCommand.sides == EvenOsApi.Sides.BOTH) {
             for (byte[] packet : sendCommand.requestPackets) {
+                Log.d(TAG, "sendCommand: Sending packet to RIGHT: " + Arrays.toString(packet));
                 this.rightConnection.send(packet);
             }
         }
@@ -131,23 +141,32 @@ public class ConnectionManager {
         
 
     private void onDataReceived(byte[] data, EvenOsApi.Sides side) {
+        Log.d(TAG, "onDataReceived: Data received on side " + side + ": " + Arrays.toString(data));
         EvenOsCommand[] matches = this.commandQueue.findMatching(data, side);
+        Log.d(TAG, "onDataReceived: Matching commands found: " + matches.length);
         for (EvenOsCommand matching : matches) {
             try {
+                Log.d(TAG, "onDataReceived: Processing command: " + matching);
                 Object result = matching.onDataReceived.apply(data);
                 matching.future.complete(result);
+                Log.d(TAG, "onDataReceived: Command future completed: " + matching);
             } catch (Exception e) {
+                Log.e(TAG, "onDataReceived: Error processing command: " + matching, e);
                 matching.future.completeExceptionally(e);
             }
             this.commandQueue.remove(matching, side.name());
+            Log.d(TAG, "onDataReceived: Command removed from queue: " + matching);
         }
+        // TODO: Padronizar uso de responseHandlers ou responseListeners
         for (Map.Entry<EvenOsEventListener<?>, BiConsumer<?, EvenOsApi.Sides>> entry : responseListeners.entrySet()) {
             EvenOsEventListener<?> listener = entry.getKey();
             if (listener.matches(data, side)) {
+                Log.d(TAG, "onDataReceived: EventListener matched: " + listener);
                 Object parsed = listener.parse(data, side);
                 @SuppressWarnings("unchecked")
                 BiConsumer<Object, EvenOsApi.Sides> handler = (BiConsumer<Object, EvenOsApi.Sides>) entry.getValue();
                 handler.accept(parsed, side);
+                Log.d(TAG, "onDataReceived: EventListener handler executed.");
                 break;
             }
         }
