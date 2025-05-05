@@ -1,5 +1,5 @@
 plugins {
-    alias(libs.plugins.android.application)
+    id("com.android.library")
 }
 
 android {
@@ -11,12 +11,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.evenrealities.even_g1_sdk"
         minSdk = 24
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

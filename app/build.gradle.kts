@@ -3,11 +3,11 @@ plugins {
 }
 
 android {
-    namespace = "com.evenrealities.base"
+    namespace = "com.evenrealities"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.evenrealities.base"
+        applicationId = "com.evenrealities"
         minSdk = 24
         targetSdk = 35
         versionCode = 1
@@ -32,7 +32,7 @@ android {
 }
 
 dependencies {
-
+    implementation(project(":even-g1-sdk"))
     implementation(libs.appcompat)
     implementation(libs.material)
     testImplementation(libs.junit)
