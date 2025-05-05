@@ -62,6 +62,8 @@ public class ConnectionManager {
         this.leftConnection = new Connection(context, leftDevice, config);
         this.rightConnection = new Connection(context, rightDevice, config);
         this.commandQueue = new CommandQueue();
+
+        this.init();
     }
 
     public void setEvenOsApi(EvenOsApi evenOsApi) {
@@ -69,10 +71,8 @@ public class ConnectionManager {
     }
 
     public void init() {
-        // this.leftConnection.connect();
-        // this.rightConnection.connect();
-        // this.leftConnection.setRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.LEFT));
-        // this.rightConnection.setRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.RIGHT));
+        this.leftConnection.setOnRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.LEFT));
+        this.rightConnection.setOnRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.RIGHT));
     }
 
 
