@@ -38,7 +38,7 @@ import com.evenrealities.even_g1_sdk.api.EvenOsEventListener;
 
 public class ConnectionManager {
 
-    private static final String TAG = "EVEN_G!_ConnectionManager";
+    private static final String TAG = "EVEN_G1_ConnectionManager";
 
     private final Connection leftConnection;
     private final Connection rightConnection;
@@ -129,6 +129,14 @@ public class ConnectionManager {
         return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
     }
 
+    public <T> void setOnDataReceived(EvenOsApi.Sides side, BiConsumer<byte[], EvenOsApi.Sides> handler) {
+        if (side == EvenOsApi.Sides.LEFT) {
+            this.leftConnection.setOnRxDataListener(data -> handler.accept(data, EvenOsApi.Sides.LEFT));
+        } else if (side == EvenOsApi.Sides.RIGHT) {
+            this.rightConnection.setOnRxDataListener(data -> handler.accept(data, EvenOsApi.Sides.RIGHT));
+        }
+    }
+
     public <T> void setOnResponse(EvenOsApi.Sides side, EvenOsEventListener<T> listener, BiConsumer<T, EvenOsApi.Sides> handler) {
         // Remove old entry if it exists
         responseHandlers.removeIf(entry ->
@@ -138,12 +146,30 @@ public class ConnectionManager {
         // Add the new handler
         responseHandlers.add(new ResponseHandler<>(side, listener, handler));
     }
-        
+
+    /**
+     * Add a response listener for a specific event.
+     * @param listener The event listener to add.
+     * @param handler The handler to call when the event occurs.
+     */
+    public void addResponseListener(EvenOsEventListener<?> listener, BiConsumer<?, EvenOsApi.Sides> handler) {
+        Log.d(TAG, "addResponseListener: Adding response listener: " + listener);
+        responseListeners.put(listener, handler);
+        Log.d(TAG, "addResponseListener: Response listeners: " + responseListeners);
+    }
+
+    /**
+     * Remove a response listener for a specific event.
+     * @param listener The event listener to remove.
+     */
+    public void removeResponseListener(EvenOsEventListener<?> listener) {
+        Log.d(TAG, "removeResponseListener: Removing response listener: " + listener);
+        responseListeners.remove(listener);
+    }
 
     private void onDataReceived(byte[] data, EvenOsApi.Sides side) {
-        Log.d(TAG, "onDataReceived: Data received on side " + side + ": " + Arrays.toString(data));
+        boolean isUnknownCommand = true;
         EvenOsCommand[] matches = this.commandQueue.findMatching(data, side);
-        Log.d(TAG, "onDataReceived: Matching commands found: " + matches.length);
         for (EvenOsCommand matching : matches) {
             try {
                 Log.d(TAG, "onDataReceived: Processing command: " + matching);
@@ -157,10 +183,14 @@ public class ConnectionManager {
             this.commandQueue.remove(matching, side.name());
             Log.d(TAG, "onDataReceived: Command removed from queue: " + matching);
         }
+        
+        Log.d(TAG, "onDataReceived: responseListeners: " + responseListeners);
         // TODO: Padronizar uso de responseHandlers ou responseListeners
         for (Map.Entry<EvenOsEventListener<?>, BiConsumer<?, EvenOsApi.Sides>> entry : responseListeners.entrySet()) {
+            Log.d(TAG, "onDataReceived: TENTANDO FAZER MATCH responseListeners: " + Arrays.toString(data));
             EvenOsEventListener<?> listener = entry.getKey();
             if (listener.matches(data, side)) {
+                isUnknownCommand = false;
                 Log.d(TAG, "onDataReceived: EventListener matched: " + listener);
                 Object parsed = listener.parse(data, side);
                 @SuppressWarnings("unchecked")
@@ -170,11 +200,20 @@ public class ConnectionManager {
                 break;
             }
         }
+
+        if (matches.length == 0 && isUnknownCommand) {
+            Log.d(TAG, "onDataReceived: Unknown command received.");
+            StringBuilder hex = new StringBuilder();
+            for (byte b : data) hex.append(String.format("%02X ", b));
+            Log.d(TAG, "onDataReceived: Data received on side " + side + ": [" + hex.toString().trim() + "]");
+        }
     }
     
 }
 
-
+/**
+ * Handle for command response
+ */
 class ResponseHandler<T> {
     public final EvenOsApi.Sides side;
     public final EvenOsEventListener<T> listener;
