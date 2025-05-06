@@ -538,12 +538,10 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         return new EvenOsEventListener<Boolean>() {
             @Override
             public boolean matches(byte[] data, EvenOsApi.Sides side) {
-                Log.d("EVEN_G1_API", "onBlePairedSuccess: ENTROU CARAHOWW!! TENTANDO FAZER MATCH matches: " + Arrays.toString(data));
                 return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x11;
             }
             @Override
             public Boolean parse(byte[] data, EvenOsApi.Sides side) {
-                Log.d("EVEN_G1_API", "onBlePairedSuccess: ENTROU CARAHOWW!! fazendo parse: " + Arrays.toString(data));
                 return data[1] == 0x11;
             }
         };

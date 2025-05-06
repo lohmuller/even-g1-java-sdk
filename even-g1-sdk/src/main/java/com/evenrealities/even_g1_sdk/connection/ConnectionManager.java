@@ -153,9 +153,7 @@ public class ConnectionManager {
      * @param handler The handler to call when the event occurs.
      */
     public void addResponseListener(EvenOsEventListener<?> listener, BiConsumer<?, EvenOsApi.Sides> handler) {
-        Log.d(TAG, "addResponseListener: Adding response listener: " + listener);
         responseListeners.put(listener, handler);
-        Log.d(TAG, "addResponseListener: Response listeners: " + responseListeners);
     }
 
     /**
@@ -163,7 +161,6 @@ public class ConnectionManager {
      * @param listener The event listener to remove.
      */
     public void removeResponseListener(EvenOsEventListener<?> listener) {
-        Log.d(TAG, "removeResponseListener: Removing response listener: " + listener);
         responseListeners.remove(listener);
     }
 
@@ -202,10 +199,9 @@ public class ConnectionManager {
         }
 
         if (matches.length == 0 && isUnknownCommand) {
-            Log.d(TAG, "onDataReceived: Unknown command received.");
             StringBuilder hex = new StringBuilder();
             for (byte b : data) hex.append(String.format("%02X ", b));
-            Log.d(TAG, "onDataReceived: Data received on side " + side + ": [" + hex.toString().trim() + "]");
+            Log.d(TAG, "onDataReceived: Unknown Command received on side " + side + ": [" + hex.toString().trim() + "]");
         }
     }
     
