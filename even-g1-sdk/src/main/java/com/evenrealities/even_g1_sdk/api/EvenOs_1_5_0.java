@@ -134,7 +134,7 @@ public class EvenOs_1_5_0 implements EvenOsApi {
             (byte) 0xFB // Maybe there is more options to send?
         };
         byte[] responseHeader = { requestBytes[0] };
-        return new EvenOsCommand<Boolean>(requestBytes, responseHeader, EvenOsApi.Sides.BOTH, (byte[] data) -> {
+        return new EvenOsCommand<Boolean>(requestBytes, responseHeader, EvenOsApi.Sides.LEFT, (byte[] data) -> {
             return (data[0] == 0xC9); 
         });
     }

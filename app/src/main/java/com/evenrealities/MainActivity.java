@@ -69,8 +69,8 @@ public class MainActivity extends Activity {
         appendLog("App started");
 
         //@TODO change this to a retry logic
-        logConnectedDevices();
         checkPermissions();
+        logConnectedDevices();
     }
 
     private void checkPermissions() {
@@ -114,7 +114,7 @@ public class MainActivity extends Activity {
                 appendLog("Permissions denied:\n" + denied.toString());
                 showRetryPermissionsButton();
                 if (!ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.BLUETOOTH_SCAN)) {
-                    appendLog("Permissão negada permanentemente. Vá nas configurações do app para ativar.");
+                    appendLog("No permission granted. Go to app settings to enable.");
                     showOpenSettingsButton();
                 }
             }
@@ -185,7 +185,25 @@ public class MainActivity extends Activity {
                 connectionManager.addResponseListener(evenOsApi.onGlassesBattery(), (data, side) -> {
                     appendLog("Glasses battery: "+data);
                 });
-                
+
+                try {
+                    appendLog("Initializing...");
+                    connectionManager.sendCommand(evenOsApi.initialize());
+                    appendLog("Initialize result: ");
+                } catch (Exception e) {
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("Erro ao inicializar: ")
+                      .append(e.getClass().getSimpleName());
+                    if (e.getMessage() != null) {
+                        sb.append(": ").append(e.getMessage());
+                    }
+                    sb.append("\nStackTrace:\n");
+                    for (StackTraceElement el : e.getStackTrace()) {
+                        sb.append("    at ").append(el.toString()).append("\n");
+                    }
+                    appendLog(sb.toString());
+                    e.printStackTrace();
+                }
             }
             if (!anyPaired) {
                 appendLog("No paired devices found");

@@ -120,12 +120,16 @@ public class ConnectionManager {
                 this.rightConnection.send(packet);
             }
         }
+
+        Log.d(TAG, "sendCommand: Command sent: " + sendCommand);
         return sendCommand.future;
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public <T> T sendAndWait(EvenOsCommand<T> command, long timeoutMillis) throws Exception {
+        Log.d(TAG, "sendAndWait: Sending command: " + command);
         CompletableFuture<T> future = sendCommand(command);
+        Log.d(TAG, "sendAndWait: Waiting for command to complete: " + command);
         return future.get(timeoutMillis, TimeUnit.MILLISECONDS);
     }
 
@@ -165,6 +169,7 @@ public class ConnectionManager {
     }
 
     private void onDataReceived(byte[] data, EvenOsApi.Sides side) {
+        Log.d(TAG, "onDataReceived: Data received: " + Arrays.toString(data));
         boolean isUnknownCommand = true;
         EvenOsCommand[] matches = this.commandQueue.findMatching(data, side);
         for (EvenOsCommand matching : matches) {
