@@ -473,11 +473,11 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         return new EvenOsEventListener<Boolean>() {
             @Override
             public boolean matches(byte[] data, EvenOsApi.Sides side) {
-                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == 0x00;
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x00;
             }
             @Override
             public Boolean parse(byte[] data, EvenOsApi.Sides side) {
-                return data[1] == 0x00;
+                return data[1] == (byte) 0x00;
             }
         };
     }
@@ -486,11 +486,11 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         return new EvenOsEventListener<Boolean>() {
             @Override
             public boolean matches(byte[] data, EvenOsApi.Sides side) {
-                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == 0x01;
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x01;
             }
             @Override
             public Boolean parse(byte[] data, EvenOsApi.Sides side) {
-                return data[1] == 0x00;
+                return data[1] == (byte) 0x00;
             }
         };
     }
@@ -499,11 +499,11 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         return new EvenOsEventListener<Boolean>() {
             @Override
             public boolean matches(byte[] data, EvenOsApi.Sides side) {
-                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == 0x05;
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x05;
             }
             @Override
             public Boolean parse(byte[] data, EvenOsApi.Sides side) {
-                return data[1] == 0x00;
+                return data[1] == (byte) 0x00;
             }
         };
     }
@@ -512,11 +512,11 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         return new EvenOsEventListener<Boolean>() {
             @Override
             public boolean matches(byte[] data, EvenOsApi.Sides side) {
-                return data.length > 1 && data[0] == (byte) 0xF5 && (data[1] == 0x17 || data[1] == 0x18);
+                return data.length > 1 && data[0] == (byte) 0xF5 && (data[1] == (byte) 0x17 || data[1] == (byte) 0x18);
             }
             @Override
             public Boolean parse(byte[] data, EvenOsApi.Sides side) {
-                return data[1] == 0x17 || data[1] == 0x18;
+                return data[1] == (byte) 0x17 || data[1] == (byte) 0x18;
             }
         };
     }
@@ -525,7 +525,7 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         return new EvenOsEventListener<Boolean>() {
             @Override
             public boolean matches(byte[] data, EvenOsApi.Sides side) {
-                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == 0x18;
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x18;
             }
             @Override
             public Boolean parse(byte[] data, EvenOsApi.Sides side) {
@@ -551,7 +551,22 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         return new EvenOsEventListener<Integer>() {
             @Override
             public boolean matches(byte[] data, EvenOsApi.Sides side) {
-                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == 0x0F;
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x0F;
+            }
+            @Override
+            public Integer parse(byte[] data, EvenOsApi.Sides side) {
+                int rawValue = data[2] & 0xFF; //mask the value to 0-255
+                int percentage = Math.min(rawValue, 64); //No more than 100%  
+                return (percentage * 100) / 64; //scale to 0-100
+            }
+        };
+    }
+
+    public EvenOsEventListener<Integer> onGlassesBattery() {
+        return new EvenOsEventListener<Integer>() {
+            @Override
+            public boolean matches(byte[] data, EvenOsApi.Sides side) {
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x0A;
             }
             @Override
             public Integer parse(byte[] data, EvenOsApi.Sides side) {
@@ -562,6 +577,45 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         };
     }
     
+    
+    public EvenOsEventListener<Boolean> onCaseCharging() {
+        return new EvenOsEventListener<Boolean>() {
+            @Override
+            public boolean matches(byte[] data, EvenOsApi.Sides side) {
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x0E;
+            }
+            @Override
+            public Boolean parse(byte[] data, EvenOsApi.Sides side) {
+                return true;
+            }
+        };
+    }
+
+    public EvenOsEventListener<Boolean> onCaseClosed() {
+        return new EvenOsEventListener<Boolean>() {
+            @Override
+            public boolean matches(byte[] data, EvenOsApi.Sides side) {
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x0B;
+            }
+            @Override
+            public Boolean parse(byte[] data, EvenOsApi.Sides side) {
+                return true;
+            }
+        };
+    }
+
+    public EvenOsEventListener<Boolean> onCaseOpen() {
+        return new EvenOsEventListener<Boolean>() {
+            @Override
+            public boolean matches(byte[] data, EvenOsApi.Sides side) {
+                return data.length > 1 && data[0] == (byte) 0xF5 && data[1] == (byte) 0x08;
+            }
+            @Override
+            public Boolean parse(byte[] data, EvenOsApi.Sides side) {
+                return true;
+            }
+        };
+    }
 
 
 }

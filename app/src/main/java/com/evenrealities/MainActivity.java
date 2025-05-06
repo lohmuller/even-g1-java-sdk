@@ -170,6 +170,22 @@ public class MainActivity extends Activity {
                 connectionManager.addResponseListener(evenOsApi.onBlePairedSuccess(), (data, side) -> {
                     appendLog("BLE paired successfully "+side.name());
                 });
+                connectionManager.addResponseListener(evenOsApi.onCaseBattery(), (data, side) -> {
+                    appendLog("Case battery: "+data);
+                });
+                connectionManager.addResponseListener(evenOsApi.onCaseClosed(), (data, side) -> {
+                    appendLog("Case closed "+side.name());
+                });
+                connectionManager.addResponseListener(evenOsApi.onCaseCharging(), (data, side) -> {
+                    appendLog("Case charging "+side.name());
+                });
+                connectionManager.addResponseListener(evenOsApi.onCaseOpen(), (data, side) -> {
+                    appendLog("Case open "+side.name());
+                });
+                connectionManager.addResponseListener(evenOsApi.onGlassesBattery(), (data, side) -> {
+                    appendLog("Glasses battery: "+data);
+                });
+                
             }
             if (!anyPaired) {
                 appendLog("No paired devices found");

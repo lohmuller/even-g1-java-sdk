@@ -172,28 +172,22 @@ public class ConnectionManager {
                 Log.d(TAG, "onDataReceived: Processing command: " + matching);
                 Object result = matching.onDataReceived.apply(data);
                 matching.future.complete(result);
-                Log.d(TAG, "onDataReceived: Command future completed: " + matching);
             } catch (Exception e) {
                 Log.e(TAG, "onDataReceived: Error processing command: " + matching, e);
                 matching.future.completeExceptionally(e);
             }
             this.commandQueue.remove(matching, side.name());
-            Log.d(TAG, "onDataReceived: Command removed from queue: " + matching);
         }
         
-        Log.d(TAG, "onDataReceived: responseListeners: " + responseListeners);
         // TODO: Padronizar uso de responseHandlers ou responseListeners
         for (Map.Entry<EvenOsEventListener<?>, BiConsumer<?, EvenOsApi.Sides>> entry : responseListeners.entrySet()) {
-            Log.d(TAG, "onDataReceived: TENTANDO FAZER MATCH responseListeners: " + Arrays.toString(data));
             EvenOsEventListener<?> listener = entry.getKey();
             if (listener.matches(data, side)) {
                 isUnknownCommand = false;
-                Log.d(TAG, "onDataReceived: EventListener matched: " + listener);
                 Object parsed = listener.parse(data, side);
                 @SuppressWarnings("unchecked")
                 BiConsumer<Object, EvenOsApi.Sides> handler = (BiConsumer<Object, EvenOsApi.Sides>) entry.getValue();
                 handler.accept(parsed, side);
-                Log.d(TAG, "onDataReceived: EventListener handler executed.");
                 break;
             }
         }

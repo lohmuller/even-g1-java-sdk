@@ -209,4 +209,28 @@ public interface EvenOsApi {
      * @return Event listener for case battery level
      */
     EvenOsEventListener<Integer> onCaseBattery();
+
+    /**
+     * Listener for case charging events.
+     * @return Event listener for case charging
+     */
+    EvenOsEventListener<Boolean> onCaseCharging();
+    
+    /**
+     * Listener for case closed events.
+     * @return Event listener for case closed
+     */
+    EvenOsEventListener<Boolean> onCaseClosed();
+
+    /**
+     * Listener for case open events.
+     * @return Event listener for case open
+     */
+    EvenOsEventListener<Boolean> onCaseOpen();
+
+    /**
+     * Listener for glasses battery events.
+     * @return Event listener for glasses battery level
+     */
+    EvenOsEventListener<Integer> onGlassesBattery();
 }
