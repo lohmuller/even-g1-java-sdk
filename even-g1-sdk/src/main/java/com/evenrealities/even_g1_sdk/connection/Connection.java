@@ -63,7 +63,7 @@ public class Connection {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         @Override
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
-            Log.d(TAG, "onConnectionStateChange: status=" + status + ", newState=" + newState);
+            //@TODO: Add a listener for the connection state change (Disconnect (error?), Connect, etc)
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 Log.i(TAG, "onConnectionStateChange: Connected, requesting MTU " + mtu);
                 gatt.requestMtu(mtu);
@@ -77,7 +77,6 @@ public class Connection {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
-            Log.d(TAG, "onMtuChanged: mtu=" + mtu + ", status=" + status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.i(TAG, "onMtuChanged: Success, discovering services");
                 gatt.discoverServices(); 
@@ -92,7 +91,6 @@ public class Connection {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
-            Log.d(TAG, "onServicesDiscovered: status=" + status);
             if (status == BluetoothGatt.GATT_SUCCESS) {
                 Log.i(TAG, "onServicesDiscovered: Success, initializing");
                 new Handler(Looper.getMainLooper()).post(() -> init());               

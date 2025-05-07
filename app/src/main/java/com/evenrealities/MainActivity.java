@@ -10,8 +10,10 @@ import android.net.Uri;
 import android.os.*;
 import android.util.Log;
 import android.widget.*;
+import android.view.View;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -20,21 +22,23 @@ import com.evenrealities.even_g1_sdk.connection.ConnectionManager;
 
 import java.util.*;
 
-public class MainActivity extends Activity {
+public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_PERMISSIONS = 1;
     private static final String TAG = "EVEN_G1_Debug";
 
     private TextView logTextView;
+    private ScrollView scrollView;
     private LinearLayout devicesLayout, root;
     private Button retryButton;
 
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bleScanner;
-    private final Handler handler = new Handler();
+    private final Handler handler = new Handler(Looper.getMainLooper());
 
     private final HashMap<String, BluetoothDevice> foundDevices = new HashMap<>();
     private BluetoothDevice leftDevice, rightDevice;
     private ConnectionManager connectionManager;
+    private EvenOsApi api;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,13 +52,24 @@ public class MainActivity extends Activity {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
 
-        Button scanButton = new Button(this);
-        scanButton.setText("Scan for BLE devices");
-        scanButton.setOnClickListener(v -> startScan());
-        root.addView(scanButton);
+        // Grid of buttons (2 rows x 3 columns)
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.addView(createButton("Repair", v -> startScan()));
+        row1.addView(createButton("Reconnect", v -> reconnectDevices()));
+        row1.addView(createButton("Clear Log", v -> logTextView.setText("")));
+
+        LinearLayout row2 = new LinearLayout(this);
+        row2.setOrientation(LinearLayout.HORIZONTAL);
+        row2.addView(createButton("SendCmd1", v -> sendCommand(api.initialize())));
+        row2.addView(createButton("SendCmd2", v -> sendCommand(api.sendText("Hello, World!"))));
+        row2.addView(createButton("SendCmd3", v -> sendCommand(api.getUsageInfo())));
+
+        root.addView(row1);
+        root.addView(row2);
 
         logTextView = new TextView(this);
-        ScrollView scrollView = new ScrollView(this);
+        scrollView = new ScrollView(this);
         scrollView.addView(logTextView);
         root.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -66,18 +81,28 @@ public class MainActivity extends Activity {
         setContentView(root);
     }
 
+    private Button createButton(String text, View.OnClickListener listener) {
+        Button button = new Button(this);
+        button.setText(text);
+        button.setOnClickListener(listener);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        params.setMargins(4, 4, 4, 4);
+        button.setLayoutParams(params);
+        return button;
+    }
+
     private void checkPermissions() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!hasPermission(Manifest.permission.BLUETOOTH_CONNECT) ||
                 !hasPermission(Manifest.permission.BLUETOOTH_SCAN)) {
-                ActivityCompat.requestPermissions(this, new String[]{
+                ActivityCompat.requestPermissions(this, new String[] {
                         Manifest.permission.BLUETOOTH_CONNECT,
                         Manifest.permission.BLUETOOTH_SCAN
                 }, REQUEST_PERMISSIONS);
                 return;
             }
         } else if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
-            ActivityCompat.requestPermissions(this, new String[]{
+            ActivityCompat.requestPermissions(this, new String[] {
                     Manifest.permission.ACCESS_FINE_LOCATION
             }, REQUEST_PERMISSIONS);
             return;
@@ -126,7 +151,7 @@ public class MainActivity extends Activity {
             }
         }
         if (leftDevice != null && rightDevice != null) {
-            appendLog("Success! Both devices paired (L and R), Starting connection...");
+            appendLog("Success! Both devices paired (L and R), starting connection...");
             connectDevices(leftDevice, rightDevice);
         } else {
             appendLog("Pair both L and R devices before connecting.");
@@ -136,11 +161,11 @@ public class MainActivity extends Activity {
     private void connectDevices(BluetoothDevice left, BluetoothDevice right) {
         appendLog("Connecting to devices...");
         connectionManager = new ConnectionManager(this, left, right);
-        EvenOsApi api = new EvenOs_1_5_0();
+        api = new EvenOs_1_5_0();
 
-        connectionManager.addResponseListener(api.onBlePairedSuccess(), (data, side) -> appendLog("OnResponse: Paired: " + side));
-        connectionManager.addResponseListener(api.onCaseBattery(), (data, side) -> appendLog("OnResponse: Case battery: " + side + " " + data));
-        connectionManager.addResponseListener(api.onGlassesBattery(), (data, side) -> appendLog("OnResponse: Glasses battery: " + side + " " + data));
+        connectionManager.addResponseListener(api.onBlePairedSuccess(), (data, side) -> appendLog("Paired: " + side));
+        connectionManager.addResponseListener(api.onCaseBattery(), (data, side) -> appendLog("Case battery: " + side + " " + data));
+        connectionManager.addResponseListener(api.onGlassesBattery(), (data, side) -> appendLog("Glasses battery: " + side + " " + data));
 
         connectionManager.connect();
 
@@ -161,6 +186,28 @@ public class MainActivity extends Activity {
                 }
             }
         }, 1000);
+    }
+
+    private void reconnectDevices() {
+        if (connectionManager != null) {
+            appendLog("Reconnecting...");
+            connectionManager.reconnect();
+        } else {
+            appendLog("No connectionManager instance yet.");
+        }
+    }
+
+    private void sendCommand(EvenOsCommand command) {
+        try {
+            if (command != null && connectionManager != null && connectionManager.isInitialized()) {
+                connectionManager.sendCommand(command);
+                appendLog("Command sent: " + command.getClass().getSimpleName());
+            } else {
+                appendLog("Command or connection is not ready.");
+            }
+        } catch (Exception e) {
+            appendLog("Error sending command: " + e.getMessage());
+        }
     }
 
     private void startScan() {
@@ -190,6 +237,7 @@ public class MainActivity extends Activity {
                 devicesLayout.addView(btn);
             }
         }
+
         @Override
         public void onScanFailed(int errorCode) {
             appendLog("Scan failed: " + errorCode);
@@ -207,7 +255,10 @@ public class MainActivity extends Activity {
 
     private void appendLog(String message) {
         Log.d(TAG, message);
-        runOnUiThread(() -> logTextView.append(message + "\n"));
+        runOnUiThread(() -> {
+            logTextView.append(message + "\n");
+            scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
+        });
     }
 
     private void showRetryPermissionsButton() {

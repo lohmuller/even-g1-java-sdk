@@ -168,6 +168,37 @@ public interface EvenOsApi {
      */
     EvenOsCommand<Boolean> crcCheck(byte[] bmpData);
 
+
+    //String getCommandName(){
+     //   String command = "";
+        //@TODO: make this a map
+        //EvenOsCommand[] commandList = [
+            /*initialize(),
+            getFirmwareInfo(),
+            getBatteryInfo(Sides.BOTH),
+            getDeviceUptime(),
+            getUsageInfo(),
+            setQuickNote("Note"),
+            setHeadUpAngle(30),
+            setNotificationConfig("{}"),
+            setDashboardMode(),
+            sendText(),
+            sendBmp(new byte[0]),
+            endTransferBmp(),
+            crcCheck(new byte[0]),
+            setSilentMode(true),
+            setMicrophoneEnabled(true),
+            heartbeat(1),
+            exitApp(), */
+        /*];
+        for (EvenOsCommand command : commandList) {
+            if (command.getCommand().equals(data)) {
+                return command.getCommand().getClass().getSimpleName();
+            }
+        }*/
+    //    return command;
+    //}
+
     /**
      * Listener for double-tap gesture events.
      * @return Event listener for double-tap events
