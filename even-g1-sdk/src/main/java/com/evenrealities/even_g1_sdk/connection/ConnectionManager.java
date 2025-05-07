@@ -62,23 +62,28 @@ public class ConnectionManager {
         this.context = context;
         int mtu = 512;
         ConnectionConfig config = new ConnectionConfig(UartServiceUuid, uartTxCharUuid, uartRxCharUuid, clientCharacteristicConfigUuid, mtu);
+        this.commandQueue = new CommandQueue();
         this.leftConnection = new Connection(context, leftDevice, config);
         this.rightConnection = new Connection(context, rightDevice, config);
-        this.commandQueue = new CommandQueue();
-
-        this.init();
     }
 
     public void setEvenOsApi(EvenOsApi evenOsApi) {
         this.evenOsApi = evenOsApi;
     }
 
-    public void init() {
-        Log.i(TAG, "init: Setting up RX listeners for LEFT and RIGHT connections.");
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    public void connect() {
         this.leftConnection.setOnRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.LEFT));
         this.rightConnection.setOnRxDataListener((data) -> onDataReceived(data, EvenOsApi.Sides.RIGHT));
+
+        this.leftConnection.connect();
+        this.rightConnection.connect();
     }
 
+    public void reconnect() {
+        this.leftConnection.reconnect();
+        this.rightConnection.reconnect();
+    }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public void destroy() {
@@ -91,6 +96,13 @@ public class ConnectionManager {
         //@TODO: implement heartbeat response/reply handler?
     }
 
+    public boolean isInitialized() {
+        boolean leftInitialized = leftConnection != null && leftConnection.isInitialized();
+        boolean rightInitialized = rightConnection != null && rightConnection.isInitialized();
+        Log.d(TAG, "isInitialized: left=" + leftInitialized + ", right=" + rightInitialized);
+        return leftInitialized && rightInitialized;
+    }
+
     /**
      * Envia um comando para o dispositivo e retorna a resposta
      * @param sendCommand
@@ -98,6 +110,13 @@ public class ConnectionManager {
      */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public <T> CompletableFuture<T> sendCommand(EvenOsCommand<T> sendCommand) {
+        if (!isInitialized()) {
+            Log.w(TAG, "sendCommand: Connections not initialized yet");
+            CompletableFuture<T> future = new CompletableFuture<>();
+            future.completeExceptionally(new IllegalStateException("Connections not initialized"));
+            return future;
+        }
+
         Log.d(TAG, "sendCommand: Attempting to send command: " + sendCommand + ", sides: " + sendCommand.sides);
         if (!this.commandQueue.isAvailable(sendCommand)) {
             Log.w(TAG, "sendCommand: Command not available (conflict in queue): " + sendCommand);
@@ -169,7 +188,6 @@ public class ConnectionManager {
     }
 
     private void onDataReceived(byte[] data, EvenOsApi.Sides side) {
-        Log.d(TAG, "onDataReceived: Data received: " + Arrays.toString(data));
         boolean isUnknownCommand = true;
         EvenOsCommand[] matches = this.commandQueue.findMatching(data, side);
         for (EvenOsCommand matching : matches) {

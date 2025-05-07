@@ -53,7 +53,7 @@ public class Connection {
     private final UUID clientCharacteristicConfigUuid;
     private final int mtu;
 
-    private static final String TAG = "EVEN_G!_Connection";
+    private static final String TAG = "EVEN_G1_Connection";
     
 
     /**
@@ -117,15 +117,38 @@ public class Connection {
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public Connection(@NonNull Context context, @NonNull BluetoothDevice device, @NonNull ConnectionConfig config) {
+        Log.i(TAG, "Connection: Initializing BLE connection");
         this.context = context.getApplicationContext();
         this.device = device;
-        Log.i(TAG, "Connection: Initializing BLE connection");
-        this.gatt = device.connectGatt(context, false, internalCallback);
         this.clientCharacteristicConfigUuid = config.clientCharacteristicConfigUuid;
         this.uartServiceUuid = config.uartServiceUuid;
         this.uartTxCharUuid = config.uartTxCharUuid;
         this.uartRxCharUuid = config.uartRxCharUuid;
         this.mtu = config.mtu;
+        Log.i(TAG, "Connection: BLE connection initialized");
+    }
+
+    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    public void connect() {
+        Log.i(TAG, "connect: Starting BLE connection");
+        if (device == null) {
+            Log.e(TAG, "connect: Device is null!");
+            return;
+        }
+        Log.d(TAG, "connect: Device name=" + device.getName() + ", address=" + device.getAddress());
+        
+        if (gatt != null) {
+            Log.d(TAG, "connect: Closing existing GATT connection");
+            gatt.close();
+        }
+        
+        try {
+            Log.d(TAG, "connect: Calling connectGatt");
+            this.gatt = device.connectGatt(context, false, internalCallback);
+            Log.i(TAG, "connect: connectGatt called successfully");
+        } catch (Exception e) {
+            Log.e(TAG, "connect: Error connecting to GATT", e);
+        }
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -178,9 +201,9 @@ public class Connection {
         }
 
         if (gatt != null) {
-            gatt.close();
+            gatt.disconnect();
         }
-        gatt = device.connectGatt(context, false, internalCallback);
+        this.connect();
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
