@@ -43,7 +43,6 @@ public class Connection {
     private BluetoothGattCharacteristic txChar;
     private BluetoothGattCharacteristic rxChar;
     private OnRxDataListener rxDataListener;
-    private boolean isInitialized = false;
 
     private final Context context;
     private final BluetoothDevice device;
@@ -54,7 +53,34 @@ public class Connection {
     private final int mtu;
 
     private static final String TAG = "EVEN_G1_Connection";
+
+    public enum ConnectionState {
+        DISCONNECTED,
+        CONNECTING,
+        CONNECTED,
+        INITIALIZING,
+        INITIALIZED,
+        DISCONNECTING
+    }
+
+    private ConnectionState connectionState = ConnectionState.DISCONNECTED;
     
+    public interface OnConnectionStateChangeListener {
+        void onConnectionStateChanged(ConnectionState state);
+    }
+
+    private OnConnectionStateChangeListener connectionStateListener;
+
+    public void setConnectionStateListener(OnConnectionStateChangeListener listener) {
+        this.connectionStateListener = listener;
+    }
+
+    private void setConnectionState(ConnectionState state) {
+        this.connectionState = state;
+        if (connectionStateListener != null) {
+            connectionStateListener.onConnectionStateChanged(state);
+        }
+    }
 
     /**
      * Internal callback for the BluetoothGatt
@@ -66,10 +92,11 @@ public class Connection {
             //@TODO: Add a listener for the connection state change (Disconnect (error?), Connect, etc)
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 Log.i(TAG, "onConnectionStateChange: Connected, requesting MTU " + mtu);
+                setConnectionState( ConnectionState.CONNECTED);
                 gatt.requestMtu(mtu);
             } else {
                 Log.w(TAG, "onConnectionStateChange: Disconnected");
-                Connection.this.isInitialized = false;
+                setConnectionState( ConnectionState.DISCONNECTED);
             }
         }
 
@@ -78,10 +105,12 @@ public class Connection {
         @Override
         public void onMtuChanged(BluetoothGatt gatt, int mtu, int status) {
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                setConnectionState( ConnectionState.INITIALIZING);
                 Log.i(TAG, "onMtuChanged: Success, discovering services");
                 gatt.discoverServices(); 
             } else {
                 Log.e(TAG, "onMtuChanged: Error negotiating MTU (status=" + status + ")");
+                setConnectionState( ConnectionState.DISCONNECTED);
                 gatt.disconnect();
                 gatt.close();
             }
@@ -96,6 +125,7 @@ public class Connection {
                 new Handler(Looper.getMainLooper()).post(() -> init());               
             } else {
                 Log.e(TAG, "onServicesDiscovered: Failed");
+                setConnectionState( ConnectionState.DISCONNECTED);
             }
         }
 
@@ -141,6 +171,7 @@ public class Connection {
         }
         
         try {
+            setConnectionState( ConnectionState.CONNECTING);
             Log.d(TAG, "connect: Calling connectGatt");
             this.gatt = device.connectGatt(context, false, internalCallback);
             Log.i(TAG, "connect: connectGatt called successfully");
@@ -150,17 +181,8 @@ public class Connection {
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    public boolean isConnected() {
-        if (this.context == null || this.gatt == null) return false;
-
-        BluetoothManager manager = (BluetoothManager) this.context.getSystemService(Context.BLUETOOTH_SERVICE);
-        int state = manager.getConnectionState(this.gatt.getDevice(), BluetoothProfile.GATT);
-        return state == BluetoothProfile.STATE_CONNECTED;
-    }
-
-    @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    public boolean isInitialized() {
-        return isInitialized && isConnected();
+    public ConnectionState getConnectionState() {
+        return connectionState;
     }
 
     /**
@@ -186,7 +208,7 @@ public class Connection {
         }
         
         enableRxNotification();
-        isInitialized = true;
+        setConnectionState( ConnectionState.INITIALIZED);
         Log.d(TAG, "Initialization completed successfully");
     }
 
@@ -213,7 +235,7 @@ public class Connection {
             gatt = null;
             txChar = null;
             rxChar = null;
-            isInitialized = false;
+            setConnectionState( ConnectionState.DISCONNECTED);
         }
     } 
 

@@ -67,8 +67,26 @@ public class ConnectionManager {
         this.rightConnection = new Connection(context, rightDevice, config);
     }
 
+    public static boolean isLeftDevice(BluetoothDevice device) {
+        String name = device.getName();
+        return name != null && name.startsWith("Even G1_81_L_");
+    }
+
+    public static boolean isRightDevice(BluetoothDevice device) {
+        String name = device.getName();
+        return name != null && name.startsWith("Even G1_81_R_");
+    }
+    
     public void setEvenOsApi(EvenOsApi evenOsApi) {
         this.evenOsApi = evenOsApi;
+    }
+
+    public Connection getLeftConnection() {
+        return leftConnection;
+    }
+
+    public Connection getRightConnection() {
+        return rightConnection;
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -96,11 +114,15 @@ public class ConnectionManager {
         //@TODO: implement heartbeat response/reply handler?
     }
 
-    public boolean isInitialized() {
-        boolean leftInitialized = leftConnection != null && leftConnection.isInitialized();
-        boolean rightInitialized = rightConnection != null && rightConnection.isInitialized();
-        Log.d(TAG, "isInitialized: left=" + leftInitialized + ", right=" + rightInitialized);
-        return leftInitialized && rightInitialized;
+    public boolean isSideInitialized(EvenOsApi.Sides side) {
+        if (side == EvenOsApi.Sides.LEFT) {
+            return leftConnection.getConnectionState() == Connection.ConnectionState.INITIALIZED;
+        } else if (side == EvenOsApi.Sides.RIGHT) { 
+            return rightConnection.getConnectionState() == Connection.ConnectionState.INITIALIZED;
+        } else {
+            return leftConnection.getConnectionState() == Connection.ConnectionState.INITIALIZED &&
+                   rightConnection.getConnectionState() == Connection.ConnectionState.INITIALIZED;
+        }
     }
 
     /**
@@ -110,19 +132,23 @@ public class ConnectionManager {
      */
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     public <T> CompletableFuture<T> sendCommand(EvenOsCommand<T> sendCommand) {
-        if (!isInitialized()) {
-            Log.w(TAG, "sendCommand: Connections not initialized yet");
+
+        if (!isSideInitialized(sendCommand.sides)) {
+            Log.w(TAG, "sendCommand: Side " + sendCommand.sides + " not initialized yet");
             CompletableFuture<T> future = new CompletableFuture<>();
-            future.completeExceptionally(new IllegalStateException("Connections not initialized"));
+            future.completeExceptionally(new IllegalStateException("Side " + sendCommand.sides + " not initialized"));
             return future;
         }
+        
 
         Log.d(TAG, "sendCommand: Attempting to send command: " + sendCommand + ", sides: " + sendCommand.sides);
         if (!this.commandQueue.isAvailable(sendCommand)) {
-            Log.w(TAG, "sendCommand: Command not available (conflict in queue): " + sendCommand);
-            //@TODO retry logic, create a sleep between retries
-            return null;
+            Log.w(TAG, "sendCommand: Command already in queue (Cannot send the same command while previous command is still processing): " + sendCommand);
+            CompletableFuture<T> future = new CompletableFuture<>();
+            future.completeExceptionally(new IllegalStateException("Command already in queue"));
+            return future;
         }
+
         for (byte[] packet : sendCommand.requestPackets) {
             this.commandQueue.add(sendCommand);
             Log.d(TAG, "sendCommand: Command added to queue: " + sendCommand);
@@ -133,6 +159,8 @@ public class ConnectionManager {
                 this.leftConnection.send(packet);
             }
         }
+
+        //@TODO: Should wait for the command to be sent on the left connection before sending to the right?
         if (sendCommand.sides == EvenOsApi.Sides.RIGHT || sendCommand.sides == EvenOsApi.Sides.BOTH) {
             for (byte[] packet : sendCommand.requestPackets) {
                 Log.d(TAG, "sendCommand: Sending packet to RIGHT: " + Arrays.toString(packet));
@@ -140,7 +168,6 @@ public class ConnectionManager {
             }
         }
 
-        Log.d(TAG, "sendCommand: Command sent: " + sendCommand);
         return sendCommand.future;
     }
 

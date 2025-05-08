@@ -14,6 +14,8 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Base64;
 import java.util.zip.CRC32;
 import java.nio.ByteBuffer;
@@ -229,7 +231,47 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         byte[] responseHeader = { requestBytes[0] };
 
         return new EvenOsCommand<Boolean>(requestBytes, responseHeader, EvenOsApi.Sides.BOTH, (byte[] data) -> {
-            return (data[0] == 0xC9);
+            //@TODO: Remove this debug log, and understand the response format
+            Log.d("EVEN_G1_Debug1", "getUsageInfo: " + Arrays.toString(data));
+            List<List<Integer>> blocks = new ArrayList<>();
+            List<Integer> currentBlock = new ArrayList<>();
+
+            for (int i = 0; i < data.length; i++) {
+                int b = data[i] & 0xFF; // converter byte signed para unsigned
+
+                // Detectar início de bloco
+                if (i + 2 < data.length) {
+                    int b1 = data[i] & 0xFF;
+                    int b2 = data[i + 1] & 0xFF;
+                    int b3 = data[i + 2] & 0xFF;
+
+                    if (b1 == 233 && b2 == 7 && (b3 == 4 || b3 == 5)) {
+                        // Se já tinha algo, salvar bloco atual
+                        if (!currentBlock.isEmpty()) {
+                            blocks.add(currentBlock);
+                            currentBlock = new ArrayList<>();
+                        }
+                    }
+                }
+
+                currentBlock.add(b);
+            }
+
+            if (!currentBlock.isEmpty()) {
+                blocks.add(currentBlock);
+                currentBlock = new ArrayList<>();
+            }
+
+            //Log.d("EVEN_G1_Debug1", "Blocks: " + blocks.size());
+            Log.d("EVEN_G1_Debug1", "Blocks: " + blocks.size());
+            for (int i = 0; i < blocks.size(); i++) {
+                Log.d("EVEN_G1_Debug1", "Block " + i + ": " + blocks.get(i));
+            }
+
+            if (!currentBlock.isEmpty()) {
+                blocks.add(currentBlock);
+            }
+            return (data[1] == 0xC9);
         });
     }
     

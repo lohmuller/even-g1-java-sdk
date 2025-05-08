@@ -31,6 +31,17 @@ public class MainActivity extends AppCompatActivity {
     private LinearLayout devicesLayout, root;
     private Button retryButton;
 
+    // Status panel views
+    private TextView bluetoothLeftStatus;
+    private TextView bluetoothRightStatus;
+    private TextView caseStatus;
+    private TextView glassesInCaseStatus;
+    private TextView caseBatteryStatus;
+    private TextView glassesBatteryStatus;
+    private TextView caseChargingStatus;
+    private TextView glassesChargingStatus;
+    private TextView heartbeatStatus;
+
     private BluetoothAdapter bluetoothAdapter;
     private BluetoothLeScanner bleScanner;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -51,25 +62,54 @@ public class MainActivity extends AppCompatActivity {
     private void setupUI() {
         root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
+        setContentView(root);
 
-        // Grid of buttons (2 rows x 3 columns)
+        // Add status panel
+        View statusPanel = getLayoutInflater().inflate(R.layout.status_panel, root, false);
+        root.addView(statusPanel);
+
+        // Initialize status views
+        bluetoothLeftStatus = statusPanel.findViewById(R.id.bluetoothLeftStatus);
+        bluetoothRightStatus = statusPanel.findViewById(R.id.bluetoothRightStatus);
+        caseStatus = statusPanel.findViewById(R.id.caseStatus);
+        glassesInCaseStatus = statusPanel.findViewById(R.id.glassesInCaseStatus);
+        caseBatteryStatus = statusPanel.findViewById(R.id.caseBatteryStatus);
+        glassesBatteryStatus = statusPanel.findViewById(R.id.glassesBatteryStatus);
+        caseChargingStatus = statusPanel.findViewById(R.id.caseChargingStatus);
+        glassesChargingStatus = statusPanel.findViewById(R.id.glassesChargingStatus);
+        heartbeatStatus = statusPanel.findViewById(R.id.heartbeatStatus);
+
+        // Add buttons section
+        LinearLayout buttonsContainer = new LinearLayout(this);
+        buttonsContainer.setOrientation(LinearLayout.VERTICAL);
+        root.addView(buttonsContainer);
+
+        // Grid of buttons (3 rows x 3 columns)
         LinearLayout row1 = new LinearLayout(this);
         row1.setOrientation(LinearLayout.HORIZONTAL);
-        row1.addView(createButton("Repair", v -> startScan()));
+        row1.addView(createButton("Repair", v -> startScan())); //@TODO change to repair 
         row1.addView(createButton("Reconnect", v -> reconnectDevices()));
         row1.addView(createButton("Clear Log", v -> logTextView.setText("")));
+        buttonsContainer.addView(row1);
 
         LinearLayout row2 = new LinearLayout(this);
         row2.setOrientation(LinearLayout.HORIZONTAL);
-        row2.addView(createButton("SendCmd1", v -> sendCommand(api.initialize())));
-        row2.addView(createButton("SendCmd2", v -> sendCommand(api.sendText("Hello, World!"))));
-        row2.addView(createButton("SendCmd3", v -> sendCommand(api.getUsageInfo())));
+        row2.addView(createButton("SendCmd1", v -> sendCommand("initialize", api.initialize())));
+        row2.addView(createButton("SendCmd2", v -> sendCommand("sendText", api.sendText("Hello, World!"))));
+        row2.addView(createButton("SendCmd3", v -> sendCommand("getUsageInfo", api.getUsageInfo())));
+        buttonsContainer.addView(row2);
 
-        root.addView(row1);
-        root.addView(row2);
+        LinearLayout row3 = new LinearLayout(this);
+        row3.setOrientation(LinearLayout.HORIZONTAL);
+        row3.addView(createButton("SendCmd4", v -> sendCommand("getFirmwareInfo", api.getFirmwareInfo())));
+        row3.addView(createButton("SendCmd5", v -> sendCommand("getBatteryInfo", api.getBatteryInfo(EvenOsApi.Sides.BOTH))));
+        row3.addView(createButton("SendCmd6", v -> sendCommand("getDeviceUptime", api.getDeviceUptime())));
+        buttonsContainer.addView(row3);
 
-        logTextView = new TextView(this);
+        // Add log section
         scrollView = new ScrollView(this);
+        logTextView = new TextView(this);
+        logTextView.setPadding(16, 16, 16, 16);
         scrollView.addView(logTextView);
         root.addView(scrollView, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
@@ -77,8 +117,6 @@ public class MainActivity extends AppCompatActivity {
         devicesLayout = new LinearLayout(this);
         devicesLayout.setOrientation(LinearLayout.VERTICAL);
         root.addView(devicesLayout);
-
-        setContentView(root);
     }
 
     private Button createButton(String text, View.OnClickListener listener) {
@@ -142,19 +180,28 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void checkPairedDevices() {
+        appendLog("Checking if the devices are already bonded...");
         Set<BluetoothDevice> bonded = bluetoothAdapter.getBondedDevices();
         for (BluetoothDevice device : bonded) {
-            String name = device.getName();
-            if (name != null) {
-                if (name.startsWith("Even G1_81_L_")) leftDevice = device;
-                if (name.startsWith("Even G1_81_R_")) rightDevice = device;
+            if (ConnectionManager.isLeftDevice(device)) {
+                leftDevice = device;
+                updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Not Connected)");
+            } else if (ConnectionManager.isRightDevice(device)) {
+                rightDevice = device;
+                updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Not Connected)");
             }
         }
         if (leftDevice != null && rightDevice != null) {
-            appendLog("Success! Both devices paired (L and R), starting connection...");
+            appendLog("Success! Both devices bonded (L and R), starting connection...");
             connectDevices(leftDevice, rightDevice);
         } else {
-            appendLog("Pair both L and R devices before connecting.");
+            if (leftDevice == null) {
+                updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Not Bonded");
+            }
+            if (rightDevice == null) {
+                updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Not Bonded");
+            }
+            appendLog("Bond both L and R devices before connecting.");
         }
     }
 
@@ -163,12 +210,35 @@ public class MainActivity extends AppCompatActivity {
         connectionManager = new ConnectionManager(this, left, right);
         api = new EvenOs_1_5_0();
 
-        connectionManager.addResponseListener(api.onBlePairedSuccess(), (data, side) -> appendLog("Paired: " + side));
-        connectionManager.addResponseListener(api.onCaseBattery(), (data, side) -> appendLog("Case battery: " + side + " " + data));
-        connectionManager.addResponseListener(api.onGlassesBattery(), (data, side) -> appendLog("Glasses battery: " + side + " " + data));
+        // Add listeners for status updates
+        connectionManager.addResponseListener(api.onBlePairedSuccess(), (data, side) -> {
+            appendLog("Bonded: " + side);
+            updateBluetoothStatus(side, "Bonded (Connected)");
+        });
+
+        // Add connection state listener
+        //connectionManager.addConnectionStateListener((connected, side) -> {
+        //    String status = connected ? "Bonded (Connected)" : "Bonded (Disconnected)";
+        //    updateBluetoothStatus(side, status);
+        //    appendLog("Connection state changed: " + side + " - " + status);
+        //});
 
         connectionManager.connect();
 
+        // Update initial states
+        updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connecting...)");
+        updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connecting...)");
+
+        try {
+            Object data = connectionManager.sendAndWait(api.initialize(), 1000);
+            appendLog("Initialization got data: "+data);
+        } catch (Exception e) {
+            updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Error)");
+            updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Error)");
+            appendLog("Error: " + e.getMessage());
+        }
+
+        /*
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -179,6 +249,8 @@ public class MainActivity extends AppCompatActivity {
                         appendLog("Initialization sent");
                     } catch (Exception e) {
                         appendLog("Error: " + e.getMessage());
+                        updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Error)");
+                        updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Error)");
                     }
                 } else {
                     appendLog("Waiting for connection to initialize...");
@@ -186,6 +258,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }, 1000);
+        */
     }
 
     private void reconnectDevices() {
@@ -197,13 +270,14 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void sendCommand(EvenOsCommand command) {
+    private void sendCommand(String commandName, EvenOsCommand command) {
         try {
-            if (command != null && connectionManager != null && connectionManager.isInitialized()) {
-                connectionManager.sendCommand(command);
-                appendLog("Command sent: " + command.getClass().getSimpleName());
-            } else {
-                appendLog("Command or connection is not ready.");
+            if (connectionManager == null) {
+                appendLog("ConnectionManager is not ready.");
+            }else {
+                appendLog("Sending Command: " + commandName);    
+                Object result = connectionManager.sendAndWait(command, 1000);    
+                appendLog("Command sent: " + commandName + ", result: " + result);
             }
         } catch (Exception e) {
             appendLog("Error sending command: " + e.getMessage());
@@ -246,10 +320,16 @@ public class MainActivity extends AppCompatActivity {
 
     private void startPairing(BluetoothDevice device) {
         if (device.getBondState() != BluetoothDevice.BOND_BONDED) {
-            appendLog("Pairing with: " + device.getName());
+            appendLog("Bonding with: " + device.getName());
             device.createBond();
+            // Update status to show bonding in progress
+            if (device.getName().startsWith("Even G1_81_L_")) {
+                updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonding...");
+            } else if (device.getName().startsWith("Even G1_81_R_")) {
+                updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonding...");
+            }
         } else {
-            appendLog("Already paired: " + device.getName());
+            appendLog("Already bonded: " + device.getName());
         }
     }
 
@@ -289,5 +369,45 @@ public class MainActivity extends AppCompatActivity {
             startActivity(intent);
         });
         root.addView(btn);
+    }
+
+    private void updateBluetoothStatus(EvenOsApi.Sides side, String status) {
+        runOnUiThread(() -> {
+            if (side == EvenOsApi.Sides.LEFT) {
+                bluetoothLeftStatus.setText(status);
+            } else if (side == EvenOsApi.Sides.RIGHT) {
+                bluetoothRightStatus.setText(status);
+            }
+        });
+    }
+
+    private void updateCaseBattery(int level) {
+        runOnUiThread(() -> {
+            caseBatteryStatus.setText(level + "%");
+        });
+    }
+
+    private void updateGlassesBattery(int level) {
+        runOnUiThread(() -> {
+            glassesBatteryStatus.setText(level + "%");
+        });
+    }
+
+    private void updateCaseCharging(boolean isCharging) {
+        runOnUiThread(() -> {
+            caseChargingStatus.setText(isCharging ? "Yes" : "No");
+        });
+    }
+
+    private void updateCaseStatus(boolean isClosed) {
+        runOnUiThread(() -> {
+            caseStatus.setText(isClosed ? "Closed" : "Open");
+        });
+    }
+
+    private void updateHeartbeat(int seq) {
+        runOnUiThread(() -> {
+            heartbeatStatus.setText(String.valueOf(seq));
+        });
     }
 }
