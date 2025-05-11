@@ -30,7 +30,7 @@ import java.io.StringWriter;
  * - Automatic reconnection on timeout
  */
 public class MainActivity extends AppCompatActivity {
-    private static final String TAG = "EVEN_G1_MainActivity";
+    private static final String TAG = "MainActivity";
     
     // Connection management
     private EvenOsApi api;
@@ -126,14 +126,17 @@ public class MainActivity extends AppCompatActivity {
 
                     // Add response listener for all commands
                     connectionManager.addResponseListener(api.onAllResponses(), (data, side) -> {
+                        android.util.Log.d("MainActivity", "Received response, creating log entry...");
                         if (data instanceof byte[]) {
                             byte[] response = (byte[]) data;
                             StringBuilder hexString = new StringBuilder();
                             for (byte b : response) {
                                 hexString.append(String.format("%02X ", b));
                             }
+                            android.util.Log.d("MainActivity", "Sending Response log with hex data");
                             UIHelper.appendLog("Response", "Response from " + side + ": " + hexString.toString().trim());
                         } else {
+                            android.util.Log.d("MainActivity", "Sending Response log with object data");
                             UIHelper.appendLog("Response", "Response from " + side + ": " + data);
                         }
                     });
