@@ -120,6 +120,20 @@ public class MainActivity extends AppCompatActivity {
                         connectionTimeoutHandler.removeCallbacks(connectionTimeoutRunnable);
                     });
 
+                    // Add response listener for all commands
+                    connectionManager.addResponseListener(api.onAllResponses(), (data, side) -> {
+                        if (data instanceof byte[]) {
+                            byte[] response = (byte[]) data;
+                            StringBuilder hexString = new StringBuilder();
+                            for (byte b : response) {
+                                hexString.append(String.format("%02X ", b));
+                            }
+                            UIHelper.appendLog(TAG, "Response from " + side + ": " + hexString.toString().trim());
+                        } else {
+                            UIHelper.appendLog(TAG, "Response from " + side + ": " + data);
+                        }
+                    });
+
                     // Start connection process
                     UIHelper.appendLog(TAG, "Starting connection process...");
                     connectionManager.connect();
@@ -238,6 +252,7 @@ public class MainActivity extends AppCompatActivity {
         try {
             UIHelper.appendLog(TAG, "Sending command: " + name);
             Object result = connectionManager.sendAndWait(command, 1000);
+            
             UIHelper.appendLog(TAG, "Command " + name + " completed with result: " + result);
         } catch (Exception e) {
             UIHelper.appendLog(TAG, "Error sending command " + name + ": " + e.getMessage());

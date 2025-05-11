@@ -86,6 +86,7 @@ public interface EvenOsApi {
      */
     EvenOsCommand<String> getFirmwareInfo();
 
+
     /**
      * Enables or disables wear detection.
      * @param enabled true to enable, false to disable
@@ -264,4 +265,7 @@ public interface EvenOsApi {
      * @return Event listener for glasses battery level
      */
     EvenOsEventListener<Integer> onGlassesBattery();
+
+    
+    EvenOsEventListener<byte[]> onAllResponses();
 }

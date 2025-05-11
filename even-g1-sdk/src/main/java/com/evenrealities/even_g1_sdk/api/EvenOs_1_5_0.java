@@ -537,6 +537,19 @@ public class EvenOs_1_5_0 implements EvenOsApi {
         };
     }
 
+     public EvenOsEventListener<byte[]> onAllResponses() {
+        return new EvenOsEventListener<byte[]>() {
+            @Override
+            public boolean matches(byte[] data, EvenOsApi.Sides side) {
+                return true;
+            }
+            @Override
+            public byte[] parse(byte[] data, EvenOsApi.Sides side) {
+                return data;
+            }
+        };
+    }
+
     public EvenOsEventListener<Boolean> onTripleTap() {
         return new EvenOsEventListener<Boolean>() {
             @Override
