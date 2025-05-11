@@ -7,6 +7,13 @@ import android.content.Intent;
 import android.net.Uri;
 import android.view.View;
 import android.widget.*;
+import android.graphics.Color;
+import android.text.SpannableString;
+import android.text.SpannableStringBuilder;
+import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
+import java.util.HashSet;
+import java.util.Set;
 
 import com.evenrealities.even_g1_sdk.api.EvenOsApi;
 
@@ -15,6 +22,8 @@ public class UIHelper {
     public static TextView logTextView;
     public static ScrollView scrollView;
     public static Button retryButton;
+    private static Set<String> enabledTags = new HashSet<>();
+    private static SpannableStringBuilder logBuffer = new SpannableStringBuilder();
 
     public static TextView bluetoothLeftStatus, bluetoothRightStatus;
 
@@ -29,11 +38,108 @@ public class UIHelper {
         bluetoothLeftStatus = statusPanel.findViewById(R.id.bluetoothLeftStatus);
         bluetoothRightStatus = statusPanel.findViewById(R.id.bluetoothRightStatus);
 
+        // Create log section with better visibility
         scrollView = new ScrollView(activity);
+        scrollView.setFillViewport(true); // Make scroll view fill its container
         logTextView = new TextView(activity);
+        logTextView.setPadding(16, 16, 16, 16);
+        logTextView.setTextSize(12);
+        logTextView.setBackgroundColor(Color.parseColor("#F5F5F5"));
+        logTextView.setTextColor(Color.BLACK);
         scrollView.addView(logTextView);
-        root.addView(scrollView, new LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        
+        // Add a title for the log section
+        TextView logTitle = new TextView(activity);
+        logTitle.setText("Log Messages");
+        logTitle.setTextSize(14);
+        logTitle.setPadding(16, 16, 16, 8);
+        root.addView(logTitle);
+        
+        // Add filter buttons
+        LinearLayout filterLayout = new LinearLayout(activity);
+        filterLayout.setOrientation(LinearLayout.HORIZONTAL);
+        filterLayout.setPadding(16, 0, 16, 8);
+        
+        // Add filter buttons for each tag
+        String[] tags = {"System", "EVEN_G1_Debug", "BluetoothHelper"};
+        for (String tag : tags) {
+            Button filterBtn = new Button(activity);
+            filterBtn.setText(tag);
+            filterBtn.setTextSize(10);
+            filterBtn.setPadding(8, 1, 8, 1);
+            
+            // Set button style with reduced height
+            LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            );
+            btnParams.height = (int) (activity.getResources().getDisplayMetrics().density * 24);
+            btnParams.setMargins(4, 0, 4, 0);
+            filterBtn.setLayoutParams(btnParams);
+            
+            filterBtn.setOnClickListener(v -> toggleTag(tag, filterBtn));
+            
+            // Set initial state (enabled)
+            enabledTags.add(tag);
+            updateButtonStyle(filterBtn, true);
+            
+            filterLayout.addView(filterBtn);
+        }
+        
+        root.addView(filterLayout);
+
+        // Add the scroll view with proper layout params to take remaining space
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0, // Height will be determined by weight
+            1f // Take all remaining space
+        );
+        params.setMargins(8, 0, 8, 8);
+        root.addView(scrollView, params);
+        
+        // Add initial log message
+        appendLog("System", "Log system initialized");
+    }
+
+    private static void toggleTag(String tag, Button button) {
+        if (enabledTags.contains(tag)) {
+            enabledTags.remove(tag);
+            updateButtonStyle(button, false);
+        } else {
+            enabledTags.add(tag);
+            updateButtonStyle(button, true);
+        }
+        refreshLogDisplay();
+    }
+
+    private static void updateButtonStyle(Button button, boolean enabled) {
+        if (enabled) {
+            button.setBackgroundColor(Color.parseColor("#E0E0E0")); // Light gray when enabled
+            button.setTextColor(Color.parseColor("#212121")); // Dark gray text
+            button.setAlpha(1.0f); // Fully opaque
+        } else {
+            button.setBackgroundColor(Color.parseColor("#F5F5F5")); // Very light gray when disabled
+            button.setTextColor(Color.parseColor("#9E9E9E")); // Medium gray text
+            button.setAlpha(0.7f); // Slightly transparent
+        }
+    }
+
+    private static void refreshLogDisplay() {
+        if (logTextView != null) {
+            logTextView.post(() -> {
+                logTextView.setText("");
+                String[] lines = logBuffer.toString().split("\n");
+                for (String line : lines) {
+                    for (String tag : enabledTags) {
+                        if (line.contains(tag + ":")) {
+                            logTextView.append(line + "\n");
+                            break;
+                        }
+                    }
+                }
+                scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
+            });
+        }
     }
 
     public static Button createButton(Context ctx, String text, View.OnClickListener listener) {
@@ -55,14 +161,62 @@ public class UIHelper {
         root.addView(row);
     }
 
+    private static boolean isScrolledToBottom() {
+        if (scrollView == null) return false;
+        int scrollY = scrollView.getScrollY();
+        int height = scrollView.getHeight();
+        int viewHeight = logTextView.getHeight();
+        return (scrollY + height) >= viewHeight;
+    }
+
     public static void appendLog(String tag, String message) {
+        // Log to Android system log
         android.util.Log.d(tag, message);
-        logTextView.append(message + "\n");
-        scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
+
+        // Create formatted log entry
+        SpannableStringBuilder builder = new SpannableStringBuilder();
+
+        // Add tag
+        SpannableString tagStr = new SpannableString(tag + ": ");
+        tagStr.setSpan(new ForegroundColorSpan(Color.BLUE), 0, tag.length(), 0);
+        builder.append(tagStr);
+
+        // Add message
+        SpannableString msgStr = new SpannableString(message);
+        if (message.toLowerCase().contains("error")) {
+            msgStr.setSpan(new ForegroundColorSpan(Color.RED), 0, message.length(), 0);
+        } else if (message.toLowerCase().contains("success")) {
+            msgStr.setSpan(new ForegroundColorSpan(Color.GREEN), 0, message.length(), 0);
+        }
+        builder.append(msgStr);
+        builder.append("\n");
+
+        // Add to buffer
+        logBuffer.append(builder);
+
+        // Update UI if tag is enabled
+        if (enabledTags.contains(tag)) {
+            if (logTextView != null) {
+                logTextView.post(() -> {
+                    logTextView.append(builder);
+                    // Only auto-scroll if already at bottom
+                    if (isScrolledToBottom()) {
+                        scrollView.post(() -> {
+                            scrollView.fullScroll(ScrollView.FOCUS_DOWN);
+                        });
+                    }
+                });
+            } else {
+                android.util.Log.e("UIHelper", "logTextView is null!");
+            }
+        }
     }
 
     public static void clearLog() {
-        logTextView.setText("");
+        if (logTextView != null) {
+            logTextView.setText("");
+            logBuffer.clear();
+        }
     }
 
     public static void updateBluetoothStatus(EvenOsApi.Sides side, String status) {

@@ -6,11 +6,17 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
-import android.widget.Button;
+import android.widget.*;
 import androidx.appcompat.app.AppCompatActivity;
 import com.evenrealities.even_g1_sdk.api.*;
 import com.evenrealities.even_g1_sdk.connection.ConnectionManager;
 import com.evenrealities.even_g1_sdk.connection.Connection;
+import android.content.DialogInterface;
+import android.content.Intent;
+import androidx.appcompat.app.AlertDialog;
+import android.util.Log;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 
 /**
  * Main Activity for the Even Realities G1 SDK Demo App.
@@ -40,81 +46,124 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        UIHelper.appendLog(TAG, "Starting application...");
-        UIHelper.setupUI(this);
+        
+        // Set up global error handler
+        Thread.setDefaultUncaughtExceptionHandler((thread, throwable) -> {
+            handleUncaughtException(thread, throwable);
+        });
 
-        // Main command buttons
-        UIHelper.addButtonRow(this,
-            UIHelper.createButton(this, "Init", v -> onSendInitialize()),
-            UIHelper.createButton(this, "SendText", v -> onSendText()),
-            UIHelper.createButton(this, "ClearLog", v -> UIHelper.clearLog())
-        );
+        try {
+            UIHelper.appendLog(TAG, "Starting application...");
+            UIHelper.setupUI(this);
 
-        // Connection management buttons
-        UIHelper.addButtonRow(this,
-            UIHelper.createButton(this, "Reconnect", v -> onReconnect())
-        );
+            // Main command buttons
+            UIHelper.addButtonRow(this,
+                UIHelper.createButton(this, "Init", v -> sendInitialize()),
+                UIHelper.createButton(this, "SendText", v -> sendText()),
+                UIHelper.createButton(this, "ClearLog", v -> UIHelper.clearLog())
+            );
 
-        // Initialize Bluetooth and set up connection callbacks
-        UIHelper.appendLog(TAG, "Initializing Bluetooth...");
-        BluetoothHelper.init(this, new BluetoothHelper.BluetoothCallback() {
-            @Override
-            public void onLog(String tag, String message) {
-                UIHelper.appendLog(tag, message);
-            }
+            // Connection management buttons
+            UIHelper.addButtonRow(this,
+                UIHelper.createButton(this, "Reconnect", v -> onReconnect())
+            );
 
-            @Override
-            public void onStatusUpdate(EvenOsApi.Sides side, String status) {
-                UIHelper.appendLog(TAG, "Status update - " + side + ": " + status);
-                UIHelper.updateBluetoothStatus(side, status);
-            }
+            // Initialize Bluetooth and set up connection callbacks
+            UIHelper.appendLog(TAG, "Initializing Bluetooth...");
+            BluetoothHelper.init(this, new BluetoothHelper.BluetoothCallback() {
+                @Override
+                public void onLog(String tag, String message) {
+                    UIHelper.appendLog(tag, message);
+                }
 
-            @Override
-            public void onDevicesBonded(BluetoothDevice left, BluetoothDevice right) {
-                UIHelper.appendLog(TAG, "Devices bonded. Starting connection process...");
-                api = new EvenOs_1_5_0();
-                connectionManager = new ConnectionManager(MainActivity.this, left, right);
-                isConnectionError = false;
+                @Override
+                public void onStatusUpdate(EvenOsApi.Sides side, String status) {
+                    UIHelper.appendLog(TAG, "Status update - " + side + ": " + status);
+                    UIHelper.updateBluetoothStatus(side, status);
+                }
 
-                // Monitor left device connection state
-                connectionManager.getLeftConnection().setConnectionStateListener(state -> {
-                    UIHelper.appendLog(TAG, "Left connection state changed: " + state);
-                    if (state == Connection.ConnectionState.DISCONNECTED) {
-                        UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Disconnected)");
-                    } else if (state == Connection.ConnectionState.CONNECTING) {
-                        UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connecting...)");
-                    } else if (state == Connection.ConnectionState.CONNECTED) {
-                        UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connected)");
-                    }
-                });
+                @Override
+                public void onDevicesBonded(BluetoothDevice left, BluetoothDevice right) {
+                    UIHelper.appendLog(TAG, "Devices bonded. Starting connection process...");
+                    api = new EvenOs_1_5_0();
+                    connectionManager = new ConnectionManager(MainActivity.this, left, right);
+                    isConnectionError = false;
 
-                // Monitor right device connection state
-                connectionManager.getRightConnection().setConnectionStateListener(state -> {
-                    UIHelper.appendLog(TAG, "Right connection state changed: " + state);
-                    if (state == Connection.ConnectionState.DISCONNECTED) {
-                        UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Disconnected)");
-                    } else if (state == Connection.ConnectionState.CONNECTING) {
-                        UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connecting...)");
-                    } else if (state == Connection.ConnectionState.CONNECTED) {
-                        UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connected)");
-                    }
-                });
+                    // Monitor left device connection state
+                    connectionManager.getLeftConnection().setConnectionStateListener(state -> {
+                        UIHelper.appendLog(TAG, "Left connection state changed: " + state);
+                        if (state == Connection.ConnectionState.DISCONNECTED) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Disconnected)");
+                        } else if (state == Connection.ConnectionState.CONNECTING) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connecting...)");
+                        } else if (state == Connection.ConnectionState.CONNECTED) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connected)");
+                        }
+                    });
 
-                // Handle successful connection
-                connectionManager.addResponseListener(api.onBlePairedSuccess(), (data, side) -> {
-                    UIHelper.appendLog(TAG, "Connection successful for " + side);
-                    UIHelper.updateBluetoothStatus(side, "Bonded (Connected)");
-                    connectionTimeoutHandler.removeCallbacks(connectionTimeoutRunnable);
-                });
+                    // Monitor right device connection state
+                    connectionManager.getRightConnection().setConnectionStateListener(state -> {
+                        UIHelper.appendLog(TAG, "Right connection state changed: " + state);
+                        if (state == Connection.ConnectionState.DISCONNECTED) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Disconnected)");
+                        } else if (state == Connection.ConnectionState.CONNECTING) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connecting...)");
+                        } else if (state == Connection.ConnectionState.CONNECTED) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connected)");
+                        }
+                    });
 
-                // Start connection process
-                UIHelper.appendLog(TAG, "Starting connection process...");
-                connectionManager.connect();
-                
-                // Start connection timeout
-                UIHelper.appendLog(TAG, "Starting connection timeout timer (" + CONNECTION_TIMEOUT_MS + "ms)");
-                connectionTimeoutHandler.postDelayed(connectionTimeoutRunnable, CONNECTION_TIMEOUT_MS);
-            }
+                    // Handle successful connection
+                    connectionManager.addResponseListener(api.onBlePairedSuccess(), (data, side) -> {
+                        UIHelper.appendLog(TAG, "Connection successful for " + side);
+                        UIHelper.updateBluetoothStatus(side, "Bonded (Connected)");
+                        connectionTimeoutHandler.removeCallbacks(connectionTimeoutRunnable);
+                    });
+
+                    // Start connection process
+                    UIHelper.appendLog(TAG, "Starting connection process...");
+                    connectionManager.connect();
+                    
+                    // Start connection timeout
+                    UIHelper.appendLog(TAG, "Starting connection timeout timer (" + CONNECTION_TIMEOUT_MS + "ms)");
+                    connectionTimeoutHandler.postDelayed(connectionTimeoutRunnable, CONNECTION_TIMEOUT_MS);
+                }
+            });
+        } catch (Exception e) {
+            handleUncaughtException(Thread.currentThread(), e);
+        }
+    }
+
+    private void handleUncaughtException(Thread thread, Throwable throwable) {
+        // Get the stack trace
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        throwable.printStackTrace(pw);
+        String stackTrace = sw.toString();
+
+        // Log the error
+        Log.e(TAG, "Uncaught exception: " + throwable.getMessage(), throwable);
+        UIHelper.appendLog(TAG, "ERROR: " + throwable.getMessage());
+        UIHelper.appendLog(TAG, "Stack trace: " + stackTrace);
+
+        // Show error dialog
+        runOnUiThread(() -> {
+            AlertDialog.Builder builder = new AlertDialog.Builder(this);
+            builder.setTitle("Application Error")
+                   .setMessage("An error occurred: " + throwable.getMessage() + "\n\nWould you like to restart the app?")
+                   .setPositiveButton("Restart", (dialog, which) -> {
+                       // Restart the app
+                       Intent intent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                       intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                       startActivity(intent);
+                       finish();
+                   })
+                   .setNegativeButton("Close", (dialog, which) -> {
+                       // Close the app
+                       finish();
+                   })
+                   .setCancelable(false)
+                   .show();
         });
     }
 
@@ -160,7 +209,7 @@ public class MainActivity extends AppCompatActivity {
      * Sends the initialization command to the glasses.
      * This is required after connection is established.
      */
-    private void onSendInitialize() {
+    private void sendInitialize() {
         UIHelper.appendLog(TAG, "Sending initialization command...");
         sendCommand("initialize", api.initialize());
     }
@@ -169,7 +218,7 @@ public class MainActivity extends AppCompatActivity {
      * Sends a test text message to the glasses.
      * This is a simple command to verify communication is working.
      */
-    private void onSendText() {
+    private void sendText() {
         UIHelper.appendLog(TAG, "Sending test text message...");
         sendCommand("sendText", api.sendText("Hello, World!"));
     }
