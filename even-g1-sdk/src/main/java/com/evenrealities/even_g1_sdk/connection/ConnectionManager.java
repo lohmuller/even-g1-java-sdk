@@ -36,6 +36,7 @@ import com.evenrealities.even_g1_sdk.connection.CommandQueue;
 import com.evenrealities.even_g1_sdk.api.EvenOsEventListener;
 
 
+//@SuppressLint("MissingPermission")
 public class ConnectionManager {
 
     private static final String TAG = "EVEN_G1_ConnectionManager";
