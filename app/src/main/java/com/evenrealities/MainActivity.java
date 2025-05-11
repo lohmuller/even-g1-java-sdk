@@ -30,7 +30,7 @@ import java.io.StringWriter;
  * - Automatic reconnection on timeout
  */
 public class MainActivity extends AppCompatActivity {
-    private static final String TAG = "EVEN_G1_Debug";
+    private static final String TAG = "EVEN_G1_MainActivity";
     
     // Connection management
     private EvenOsApi api;
@@ -98,6 +98,8 @@ public class MainActivity extends AppCompatActivity {
                             UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connecting...)");
                         } else if (state == Connection.ConnectionState.CONNECTED) {
                             UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connected)");
+                        } else if (state == Connection.ConnectionState.INITIALIZED) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Initialized)");
                         }
                     });
 
@@ -110,6 +112,8 @@ public class MainActivity extends AppCompatActivity {
                             UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connecting...)");
                         } else if (state == Connection.ConnectionState.CONNECTED) {
                             UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connected)");
+                        } else if (state == Connection.ConnectionState.INITIALIZED) {
+                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Initialized)");
                         }
                     });
 
@@ -128,9 +132,9 @@ public class MainActivity extends AppCompatActivity {
                             for (byte b : response) {
                                 hexString.append(String.format("%02X ", b));
                             }
-                            UIHelper.appendLog(TAG, "Response from " + side + ": " + hexString.toString().trim());
+                            UIHelper.appendLog("Response", "Response from " + side + ": " + hexString.toString().trim());
                         } else {
-                            UIHelper.appendLog(TAG, "Response from " + side + ": " + data);
+                            UIHelper.appendLog("Response", "Response from " + side + ": " + data);
                         }
                     });
 
@@ -225,7 +229,16 @@ public class MainActivity extends AppCompatActivity {
      */
     private void sendInitialize() {
         UIHelper.appendLog(TAG, "Sending initialization command...");
-        sendCommand("initialize", api.initialize());
+        if (connectionManager == null) {
+            UIHelper.appendLog(TAG, "Cannot send initialize command: ConnectionManager not ready");
+            return;
+        }
+        try {
+            Object result = connectionManager.sendAndWait(api.initialize(), 1000);
+            UIHelper.appendLog(TAG, "Initialize command completed with result: " + result);
+        } catch (Exception e) {
+            UIHelper.appendLog(TAG, "Error sending initialize command: " + e.getMessage());
+        }
     }
 
     /**

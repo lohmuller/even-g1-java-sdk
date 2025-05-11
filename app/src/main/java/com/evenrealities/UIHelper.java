@@ -22,7 +22,8 @@ public class UIHelper {
     public static TextView logTextView;
     public static ScrollView scrollView;
     public static Button retryButton;
-    private static Set<String> enabledTags = new HashSet<>();
+    private static Set<String> knownTags = new HashSet<>();
+    private static Set<String> activeTags = new HashSet<>();
     private static SpannableStringBuilder logBuffer = new SpannableStringBuilder();
 
     public static TextView bluetoothLeftStatus, bluetoothRightStatus;
@@ -68,7 +69,7 @@ public class UIHelper {
         filterLayout.setPadding(16, 0, 16, 8);
         
         // Add filter buttons for each tag
-        String[] tags = {"System", "EVEN_G1_Debug", "BluetoothHelper"};
+        String[] tags = {"BluetoothHelper", "EVEN_G1_MainActivity", "Response"};
         for (String tag : tags) {
             Button filterBtn = new Button(activity);
             filterBtn.setText(tag);
@@ -87,7 +88,8 @@ public class UIHelper {
             filterBtn.setOnClickListener(v -> toggleTag(tag, filterBtn));
             
             // Set initial state (enabled)
-            enabledTags.add(tag);
+            knownTags.add(tag);
+            activeTags.add(tag);
             updateButtonStyle(filterBtn, true);
             
             filterLayout.addView(filterBtn);
@@ -107,11 +109,11 @@ public class UIHelper {
     }
 
     private static void toggleTag(String tag, Button button) {
-        if (enabledTags.contains(tag)) {
-            enabledTags.remove(tag);
+        if (activeTags.contains(tag)) {
+            activeTags.remove(tag);
             updateButtonStyle(button, false);
         } else {
-            enabledTags.add(tag);
+            activeTags.add(tag);
             updateButtonStyle(button, true);
         }
         refreshLogDisplay();
@@ -141,29 +143,46 @@ public class UIHelper {
                 
                 // Process each line
                 for (String line : lines) {
-                    for (String tag : enabledTags) {
-                        if (line.contains(tag + ":")) {
-                            // Extract tag and message
-                            int tagEnd = line.indexOf(":") + 1;
-                            String tagPart = line.substring(0, tagEnd);
-                            String messagePart = line.substring(tagEnd);
-                            
-                            // Create tag span
-                            SpannableString tagStr = new SpannableString(tagPart);
-                            tagStr.setSpan(new ForegroundColorSpan(Color.BLUE), 0, tag.length(), 0);
-                            filteredBuilder.append(tagStr);
-                            
-                            // Create message span
-                            SpannableString msgStr = new SpannableString(messagePart);
-                            if (messagePart.toLowerCase().contains("error")) {
-                                msgStr.setSpan(new ForegroundColorSpan(Color.RED), 0, messagePart.length(), 0);
-                            } else if (messagePart.toLowerCase().contains("success")) {
-                                msgStr.setSpan(new ForegroundColorSpan(Color.GREEN), 0, messagePart.length(), 0);
-                            }
-                            filteredBuilder.append(msgStr);
-                            filteredBuilder.append("\n");
+                    String tag = null;
+                    boolean shouldHide = false;
+                    
+                    // Check if line starts with any known tag
+                    for (String possibleTag : knownTags) {
+                        if (line.startsWith(possibleTag + ": ")) {
+                            tag = possibleTag;
+                            shouldHide = !activeTags.contains(tag);
                             break;
                         }
+                    }
+                    
+                    // Always show lines that don't match any known tag
+                    if (tag == null) {
+                        filteredBuilder.append(line);
+                        filteredBuilder.append("\n");
+                        continue;
+                    }
+                    
+                    // For lines with known tags, check if they should be shown
+                    if (!shouldHide) {
+                        // Extract tag and message
+                        int tagEnd = line.indexOf(": ") + 2; // +2 to include the space after colon
+                        String tagPart = line.substring(0, tagEnd);
+                        String messagePart = line.substring(tagEnd);
+                        
+                        // Create tag span - always blue
+                        SpannableString tagStr = new SpannableString(tagPart);
+                        tagStr.setSpan(new ForegroundColorSpan(Color.BLUE), 0, tag.length(), 0);
+                        filteredBuilder.append(tagStr);
+                        
+                        // Create message span
+                        SpannableString msgStr = new SpannableString(messagePart);
+                        if (messagePart.toLowerCase().contains("error")) {
+                            msgStr.setSpan(new ForegroundColorSpan(Color.RED), 0, messagePart.length(), 0);
+                        } else if (messagePart.toLowerCase().contains("success")) {
+                            msgStr.setSpan(new ForegroundColorSpan(Color.GREEN), 0, messagePart.length(), 0);
+                        }
+                        filteredBuilder.append(msgStr);
+                        filteredBuilder.append("\n");
                     }
                 }
                 
@@ -231,7 +250,7 @@ public class UIHelper {
         logBuffer.append(builder);
 
         // Update UI if tag is enabled
-        if (enabledTags.contains(tag)) {
+        if (activeTags.contains(tag)) {
             refreshLogDisplay();
         }
     }
@@ -268,6 +287,9 @@ public class UIHelper {
             emoji = "🟡";
             color = 0xFFFFB300; // Yellow
         } else if (status.contains("Bonded (Connected)")) {
+            emoji = "🟡";
+            color = 0xFFFFB300; // Yellow
+        } else if (status.contains("Bonded (Initialized)")) {
             emoji = "🟢";
             color = 0xFF43A047; // Green
         } else if (status.contains("Error") || status.contains("Timeout")) {
