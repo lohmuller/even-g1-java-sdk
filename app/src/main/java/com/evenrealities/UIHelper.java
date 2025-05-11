@@ -18,13 +18,22 @@ import android.graphics.Color;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.style.ForegroundColorSpan;
+import android.util.Log;
 import android.text.style.StyleSpan;
 import java.util.HashSet;
 import java.util.Set;
+import android.graphics.drawable.GradientDrawable;
+import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.evenrealities.even_g1_sdk.api.EvenOsApi;
 
 public class UIHelper {
+    private static final String TAG = "UIHelper";
+    private static final int MAX_RETRY_ATTEMPTS = 10;  // Maximum number of retry attempts
+    private static final long RETRY_DELAY_MS = 500;  // Delay between retries in milliseconds
+
     // Core UI elements
     public static LinearLayout root;              // Root layout containing all UI elements
     public static TextView logTextView;           // Text view for displaying log messages
@@ -34,23 +43,21 @@ public class UIHelper {
     // Tag management
     private static Set<String> knownTags = new HashSet<>();    // Set of all tags that have appeared in logs
     private static Set<String> activeTags = new HashSet<>();   // Set of tags that are currently enabled
+    private static Set<String> pendingTags = new HashSet<>();  // Tags waiting for UI to be ready
     private static SpannableStringBuilder logBuffer = new SpannableStringBuilder();  // Buffer for all log messages
+    private static Handler retryHandler = new Handler(Looper.getMainLooper());  // Handler for delayed retries
 
     // Bluetooth status displays
     public static TextView bluetoothLeftStatus, bluetoothRightStatus;  // Status displays for left and right devices
 
     // Filter button management
+    private static HorizontalScrollView filterScrollView;  // Scrollable container for filter buttons
     private static LinearLayout filterLayout;     // Layout containing filter buttons
     private static Activity mainActivity;         // Reference to main activity for UI operations
 
     /**
      * Sets up the main UI layout and initializes all UI components.
-     * Creates a vertical layout with:
-     * - Status panel at the top
-     * - Log title and filter buttons
-     * - Scrollable log display
-     * 
-     * @param activity The main activity instance
+     * After setup, processes any pending tags that arrived before UI was ready.
      */
     public static void setupUI(Activity activity) {
         mainActivity = activity;
@@ -70,10 +77,12 @@ public class UIHelper {
         scrollView.setFillViewport(true);
         scrollView.setFocusable(true);
         scrollView.setFocusableInTouchMode(true);
+        scrollView.setVerticalScrollBarEnabled(true);
         
         logTextView = new TextView(activity);
-        logTextView.setPadding(16, 16, 16, 16);
+        logTextView.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(8));
         logTextView.setTextSize(12);
+        logTextView.setTypeface(Typeface.MONOSPACE);  // Use monospace font for better readability
         logTextView.setBackgroundColor(Color.parseColor("#F5F5F5"));
         logTextView.setTextColor(Color.BLACK);
         logTextView.setFocusable(true);
@@ -86,16 +95,30 @@ public class UIHelper {
         TextView logTitle = new TextView(activity);
         logTitle.setText("Log Messages");
         logTitle.setTextSize(14);
-        logTitle.setPadding(16, 16, 16, 8);
+        logTitle.setPadding(dpToPx(8), dpToPx(8), dpToPx(8), dpToPx(4));
         root.addView(logTitle);
+        
+        // Add scrollable container for filter buttons
+        filterScrollView = new HorizontalScrollView(activity);
+        filterScrollView.setHorizontalScrollBarEnabled(true);
+        filterScrollView.setScrollBarStyle(View.SCROLLBARS_INSIDE_OVERLAY);
         
         // Add filter buttons layout
         filterLayout = new LinearLayout(activity);
         filterLayout.setOrientation(LinearLayout.HORIZONTAL);
-        filterLayout.setPadding(16, 0, 16, 8);
+        filterLayout.setPadding(dpToPx(8), 0, dpToPx(8), dpToPx(4));
+        filterLayout.setVisibility(View.VISIBLE);
         
-        // Filter buttons will be added dynamically as logs come in
-        root.addView(filterLayout);
+        // Set layout parameters for filter layout
+        LinearLayout.LayoutParams filterParams = new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        );
+        filterLayout.setLayoutParams(filterParams);
+        
+        // Add filter layout to scroll view
+        filterScrollView.addView(filterLayout);
+        root.addView(filterScrollView);
 
         // Add the scroll view with proper layout params to take remaining space
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
@@ -103,37 +126,57 @@ public class UIHelper {
             0, // Height will be determined by weight
             1f // Take all remaining space
         );
-        params.setMargins(8, 0, 8, 8);
+        params.setMargins(dpToPx(8), 0, dpToPx(8), dpToPx(8));
         root.addView(scrollView, params);
+
+        // Process any pending tags that arrived before UI was ready
+        processPendingTags();
     }
 
     /**
-     * Debug method to list all currently visible filter buttons.
-     * This helps diagnose issues with button creation and visibility.
+     * Converts dp to pixels for consistent sizing across devices
      */
-    private static void debugListVisibleButtons() {
-        if (filterLayout == null) {
-            android.util.Log.e("UIHelper", "debugListVisibleButtons: filterLayout is null");
+    private static int dpToPx(int dp) {
+        return (int) (dp * mainActivity.getResources().getDisplayMetrics().density);
+    }
+
+    /**
+     * Processes any tags that arrived before the UI was ready.
+     * Creates buttons for all pending tags.
+     */
+    private static void processPendingTags() {
+        if (mainActivity == null || filterLayout == null) {
+            Log.e(TAG, "Cannot process pending tags: UI not ready");
             return;
         }
 
-        StringBuilder debugInfo = new StringBuilder();
-        debugInfo.append("Current filter buttons:\n");
-        debugInfo.append("Known tags: ").append(knownTags).append("\n");
-        debugInfo.append("Active tags: ").append(activeTags).append("\n");
-        debugInfo.append("Button count: ").append(filterLayout.getChildCount()).append("\n");
-        
-        // List all buttons
-        for (int i = 0; i < filterLayout.getChildCount(); i++) {
-            View child = filterLayout.getChildAt(i);
-            if (child instanceof Button) {
-                Button btn = (Button) child;
-                debugInfo.append(String.format("Button[%d]: text='%s', visible=%b, enabled=%b\n",
-                    i, btn.getText(), btn.getVisibility() == View.VISIBLE, btn.isEnabled()));
+        mainActivity.runOnUiThread(() -> {
+            for (String tag : pendingTags) {
+                addFilterButton(tag);
             }
+            pendingTags.clear();
+        });
+    }
+
+    /**
+     * Attempts to create a button for a tag, with retry mechanism if UI is not ready.
+     * 
+     * @param tag The tag to create a button for
+     * @param attempt Current retry attempt number
+     */
+    private static void tryCreateButton(String tag, int attempt) {
+        if (mainActivity == null || filterLayout == null) {
+            if (attempt < MAX_RETRY_ATTEMPTS) {
+                Log.d(TAG, "UI not ready for tag: " + tag + ", attempt " + attempt + " of " + MAX_RETRY_ATTEMPTS);
+                retryHandler.postDelayed(() -> tryCreateButton(tag, attempt + 1), RETRY_DELAY_MS);
+            } else {
+                Log.e(TAG, "Failed to create button for tag: " + tag + " after " + MAX_RETRY_ATTEMPTS + " attempts");
+                pendingTags.add(tag);
+            }
+            return;
         }
-        
-        android.util.Log.d("UIHelper", debugInfo.toString());
+
+        mainActivity.runOnUiThread(() -> addFilterButton(tag));
     }
 
     /**
@@ -144,50 +187,60 @@ public class UIHelper {
      */
     private static void addFilterButton(String tag) {
         if (mainActivity == null || filterLayout == null) {
-            android.util.Log.e("UIHelper", "Cannot add button: mainActivity or filterLayout is null");
+            Log.e(TAG, "Cannot add button: mainActivity or filterLayout is null");
             return;
         }
-        
-        // Don't add if button already exists
-        if (knownTags.contains(tag)) {
-            android.util.Log.d("UIHelper", "Button already exists for tag: " + tag);
-            return;
-        }
-        
-        android.util.Log.d("UIHelper", "Creating button for tag: " + tag);
         
         // Create and add button on UI thread
         mainActivity.runOnUiThread(() -> {
             try {
+                // Add to known tags and check if it was already ther
+                
+                Log.d(TAG, "Starting button creation for tag: " + tag);
+                
+                // Create the button with rounded corners
                 Button filterBtn = new Button(mainActivity);
                 filterBtn.setText(tag);
                 filterBtn.setTextSize(10);
-                filterBtn.setPadding(8, 1, 8, 1);
+                filterBtn.setPadding(dpToPx(8), dpToPx(1), dpToPx(8), dpToPx(1));
+                filterBtn.setVisibility(View.VISIBLE);
                 
-                // Set button style with reduced height
+                // Set button style with reduced height and rounded corners
                 LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
                 );
-                btnParams.height = (int) (mainActivity.getResources().getDisplayMetrics().density * 24);
-                btnParams.setMargins(4, 0, 4, 0);
+                int buttonHeight = dpToPx(24);
+                btnParams.height = buttonHeight;
+                btnParams.setMargins(dpToPx(4), 0, dpToPx(4), 0);
                 filterBtn.setLayoutParams(btnParams);
+                
+                // Set rounded corners
+                GradientDrawable shape = new GradientDrawable();
+                shape.setShape(GradientDrawable.RECTANGLE);
+                shape.setCornerRadius(dpToPx(4));
+                shape.setColor(Color.parseColor("#E0E0E0"));
+                filterBtn.setBackground(shape);
                 
                 filterBtn.setOnClickListener(v -> toggleTag(tag, filterBtn));
                 
-                // Add to known tags and active tags
-                knownTags.add(tag);
+                // Add to active tags
                 activeTags.add(tag);
                 updateButtonStyle(filterBtn, true);
                 
                 // Add button to layout
                 filterLayout.addView(filterBtn);
-                android.util.Log.d("UIHelper", "Button added for tag: " + tag);
                 
-                // Debug info after adding
-                debugListVisibleButtons();
+                // Force layout updates
+                filterLayout.invalidate();
+                filterLayout.requestLayout();
+                if (root != null) {
+                    root.invalidate();
+                    root.requestLayout();
+                }
+                
             } catch (Exception e) {
-                android.util.Log.e("UIHelper", "Error creating button for tag: " + tag, e);
+                Log.e(TAG, "Error creating button for tag: " + tag, e);
             }
         });
     }
@@ -217,12 +270,13 @@ public class UIHelper {
      * @param enabled Whether the button is enabled
      */
     private static void updateButtonStyle(Button button, boolean enabled) {
+        GradientDrawable shape = (GradientDrawable) button.getBackground();
         if (enabled) {
-            button.setBackgroundColor(Color.parseColor("#E0E0E0")); // Light gray when enabled
+            shape.setColor(Color.parseColor("#E0E0E0")); // Light gray when enabled
             button.setTextColor(Color.parseColor("#212121")); // Dark gray text
             button.setAlpha(1.0f); // Fully opaque
         } else {
-            button.setBackgroundColor(Color.parseColor("#F5F5F5")); // Very light gray when disabled
+            shape.setColor(Color.parseColor("#F5F5F5")); // Very light gray when disabled
             button.setTextColor(Color.parseColor("#9E9E9E")); // Medium gray text
             button.setAlpha(0.7f); // Slightly transparent
         }
@@ -292,45 +346,14 @@ public class UIHelper {
                 // Set the filtered text
                 logTextView.setText(filteredBuilder);
                 
-                // Scroll to bottom if needed
+                // Scroll only if we were at the bottom before
                 if (isScrolledToBottom()) {
-                    scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
+                    scrollView.postDelayed(() -> {
+                        scrollView.fullScroll(ScrollView.FOCUS_DOWN);
+                    }, 100);
                 }
             });
         }
-    }
-
-    /**
-     * Creates a button with consistent styling.
-     * 
-     * @param ctx The context to create the button in
-     * @param text The text to display on the button
-     * @param listener The click listener for the button
-     * @return The created button
-     */
-    public static Button createButton(Context ctx, String text, View.OnClickListener listener) {
-        Button btn = new Button(ctx);
-        btn.setText(text);
-        btn.setOnClickListener(listener);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
-        params.setMargins(4, 4, 4, 4);
-        btn.setLayoutParams(params);
-        return btn;
-    }
-
-    /**
-     * Adds a row of buttons to the root layout.
-     * 
-     * @param ctx The context to create the buttons in
-     * @param buttons The buttons to add
-     */
-    public static void addButtonRow(Context ctx, Button... buttons) {
-        LinearLayout row = new LinearLayout(ctx);
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        for (Button btn : buttons) {
-            row.addView(btn);
-        }
-        root.addView(row);
     }
 
     /**
@@ -354,20 +377,20 @@ public class UIHelper {
      * @param message The message to log
      */
     public static void appendLog(String tag, String message) {
-        // Log to Android system log
-        android.util.Log.d(tag, message);
-        android.util.Log.d("UIHelper", "appendLog called with tag: " + tag + ", knownTags: " + knownTags);
+        if (mainActivity == null || filterLayout == null) {
+            throw new IllegalStateException("UIHelper not properly initialized");
+        }
+        
+        boolean isNewTag = knownTags.add(tag);
+        activeTags.add(tag);
 
-        // Add new tag button if it's a new tag
-        if (!knownTags.contains(tag)) {
-            android.util.Log.d("UIHelper", "Adding new tag: " + tag);
-            addFilterButton(tag);
-            // Force layout update
+        if (isNewTag) {
             if (mainActivity != null && filterLayout != null) {
-                mainActivity.runOnUiThread(() -> {
-                    filterLayout.invalidate();
-                    android.util.Log.d("UIHelper", "Layout invalidated after adding button for tag: " + tag);
-                });
+                mainActivity.runOnUiThread(() -> addFilterButton(tag));
+                appendLog("UIHelper", "Added new tag: " + tag);
+            } else {
+                Log.d(TAG, "UI not ready for tag: " + tag + ", will retry");
+                tryCreateButton(tag, 0);
             }
         }
 
@@ -386,18 +409,14 @@ public class UIHelper {
         } else if (message.toLowerCase().contains("success")) {
             msgStr.setSpan(new ForegroundColorSpan(Color.GREEN), 0, message.length(), 0);
         }
-        builder.append(msgStr);
-        builder.append("\n");
+        builder.append(msgStr).append("\n");
 
         // Add to buffer
         logBuffer.append(builder);
 
-        // Update UI if tag is enabled
-        if (activeTags.contains(tag)) {
-            android.util.Log.d("UIHelper", "Refreshing display for tag: " + tag);
+        // Refresh the log display
+        if (logTextView != null && scrollView != null) {
             refreshLogDisplay();
-        } else {
-            android.util.Log.d("UIHelper", "Tag not active, not refreshing: " + tag);
         }
     }
 
@@ -482,5 +501,48 @@ public class UIHelper {
             activity.startActivity(intent);
         });
         root.addView(btn);
+    }
+
+    /**
+     * Creates a button with consistent styling.
+     * 
+     * @param ctx The context to create the button in
+     * @param text The text to display on the button
+     * @param listener The click listener for the button
+     * @return The created button
+     */
+    public static Button createButton(Context ctx, String text, View.OnClickListener listener) {
+        Button btn = new Button(ctx);
+        btn.setText(text);
+        btn.setOnClickListener(listener);
+        
+        // Set button style with rounded corners
+        GradientDrawable shape = new GradientDrawable();
+        shape.setShape(GradientDrawable.RECTANGLE);
+        shape.setCornerRadius(dpToPx(4));
+        shape.setColor(Color.parseColor("#E0E0E0"));
+        btn.setBackground(shape);
+        
+        // Set layout parameters
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        params.setMargins(dpToPx(4), dpToPx(4), dpToPx(4), dpToPx(4));
+        btn.setLayoutParams(params);
+        
+        return btn;
+    }
+
+    /**
+     * Adds a row of buttons to the root layout.
+     * 
+     * @param ctx The context to create the buttons in
+     * @param buttons The buttons to add
+     */
+    public static void addButtonRow(Context ctx, Button... buttons) {
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        for (Button btn : buttons) {
+            row.addView(btn);
+        }
+        root.addView(row);
     }
 }

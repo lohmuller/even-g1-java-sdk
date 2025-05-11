@@ -52,9 +52,14 @@ public class MainActivity extends AppCompatActivity {
             handleUncaughtException(thread, throwable);
         });
 
+
         try {
-            UIHelper.appendLog(TAG, "Starting application...");
+            // Create the UI
             UIHelper.setupUI(this);
+
+            // Log the start of the application
+            UIHelper.appendLog(TAG, "Starting application...");
+            
 
             // Main command buttons
             UIHelper.addButtonRow(this,
