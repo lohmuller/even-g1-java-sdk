@@ -18,9 +18,30 @@ import com.evenrealities.even_g1_sdk.connection.ConnectionManager;
 import java.util.*;
 
 public class BluetoothHelper {
+
+    
+    public enum PairingStatus {
+        /* -------- pairing (bond) -------- */
+        NOT_BONDED,        // nunca pareado
+        BONDING,           // createBond em progresso
+        BONDED,             // pareado OK
+        BONDING_FAILED,    // falha no bonding
+        ERROR              // falha em qualquer passo
+    }
+    public enum ConnectionStatus {
+        /* -------- conexão GATT -------- */
+        DISCONNECTED,      // desconectado (mas já BONDED)
+        CONNECTING,        // connectGatt() em andamento
+        CONNECTED,         // GATT aberto, antes de init()
+        INITIALIZED,       // serviços + notificações OK
+
+        /* -------- erro -------- */
+        ERROR              // falha em qualquer passo
+    }
+
     public interface BluetoothCallback {
         void onLog(String tag, String message);
-        void onStatusUpdate(EvenOsApi.Sides side, String status);
+        void onPairingStatusUpdate(EvenOsApi.Sides side, PairingStatus status);
         void onDevicesBonded(BluetoothDevice left, BluetoothDevice right);
     }
 
@@ -83,10 +104,10 @@ public class BluetoothHelper {
         for (BluetoothDevice device : bonded) {
             if (ConnectionManager.isLeftDevice(device)) {
                 leftDevice = device;
-                callback.onStatusUpdate(EvenOsApi.Sides.LEFT, "Bonded (Not Connected)");
+                callback.onPairingStatusUpdate(EvenOsApi.Sides.LEFT, PairingStatus.BONDED);
             } else if (ConnectionManager.isRightDevice(device)) {
                 rightDevice = device;
-                callback.onStatusUpdate(EvenOsApi.Sides.RIGHT, "Bonded (Not Connected)");
+                callback.onPairingStatusUpdate(EvenOsApi.Sides.RIGHT, PairingStatus.BONDED);
             }
         }
 
@@ -95,9 +116,9 @@ public class BluetoothHelper {
             callback.onDevicesBonded(leftDevice, rightDevice);
         } else {
             if (leftDevice == null)
-                callback.onStatusUpdate(EvenOsApi.Sides.LEFT, "Not Bonded");
+                callback.onPairingStatusUpdate(EvenOsApi.Sides.LEFT, PairingStatus.NOT_BONDED);
             if (rightDevice == null)
-                callback.onStatusUpdate(EvenOsApi.Sides.RIGHT, "Not Bonded");
+                callback.onPairingStatusUpdate(EvenOsApi.Sides.RIGHT, PairingStatus.NOT_BONDED);
             startScan();
         }
     }
@@ -126,10 +147,10 @@ public class BluetoothHelper {
                 callback.onLog(TAG, "Found: " + name);
 
                 if (ConnectionManager.isLeftDevice(device)) {
-                    callback.onStatusUpdate(EvenOsApi.Sides.LEFT, "Found, Bonding...");
+                    callback.onPairingStatusUpdate(EvenOsApi.Sides.LEFT, PairingStatus.BONDING);
                     device.createBond();
                 } else if (ConnectionManager.isRightDevice(device)) {
-                    callback.onStatusUpdate(EvenOsApi.Sides.RIGHT, "Found, Bonding...");
+                    callback.onPairingStatusUpdate(EvenOsApi.Sides.RIGHT, PairingStatus.BONDING);
                     device.createBond();
                 }
             }

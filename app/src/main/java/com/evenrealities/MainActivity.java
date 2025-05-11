@@ -56,9 +56,6 @@ public class MainActivity extends AppCompatActivity {
         try {
             // Create the UI
             UIHelper.setupUI(this);
-
-            // Log the start of the application
-            UIHelper.appendLog(TAG, "Starting application...");
             
 
             // Main command buttons
@@ -74,7 +71,6 @@ public class MainActivity extends AppCompatActivity {
             );
 
             // Initialize Bluetooth and set up connection callbacks
-            UIHelper.appendLog(TAG, "Initializing Bluetooth...");
             BluetoothHelper.init(this, new BluetoothHelper.BluetoothCallback() {
                 @Override
                 public void onLog(String tag, String message) {
@@ -82,9 +78,8 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 @Override
-                public void onStatusUpdate(EvenOsApi.Sides side, String status) {
-                    UIHelper.appendLog(TAG, "Status update - " + side + ": " + status);
-                    UIHelper.updateBluetoothStatus(side, status);
+                public void onPairingStatusUpdate(EvenOsApi.Sides side, BluetoothHelper.PairingStatus status) {
+                    UIHelper.setBleStatus(side, status);
                 }
 
                 @Override
