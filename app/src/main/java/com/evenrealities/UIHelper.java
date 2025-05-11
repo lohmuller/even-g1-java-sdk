@@ -62,16 +62,29 @@ public final class UIHelper {
 
         /* área de log */
         scrollView = new ScrollView(mainActivity);
+        scrollView.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            0, // height
+            1f // weight
+        ));
+        scrollView.setFillViewport(true); // Garante que o conteúdo ocupe todo o espaço
+        scrollView.setScrollbarFadingEnabled(false); // Mantém a barra de rolagem sempre visível
+        scrollView.setVerticalScrollBarEnabled(true); // Garante que a barra vertical está habilitada
+        scrollView.setScrollBarStyle(View.SCROLLBARS_OUTSIDE_OVERLAY); // Estilo da barra de rolagem
+
         logTextView = new TextView(mainActivity);
         logTextView.setTypeface(Typeface.MONOSPACE);
         logTextView.setTextSize(12);
         logTextView.setTextColor(Color.WHITE);
         logTextView.setPadding(dp(8), dp(8), dp(8), dp(8));
         logTextView.setMovementMethod(new ScrollingMovementMethod());
+        logTextView.setLayoutParams(new LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ));
+
         scrollView.addView(logTextView);
-        root.addView(scrollView,
-            new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f));
+        root.addView(scrollView);
 
         /* área de filtros */
         filterLayout = new LinearLayout(mainActivity);
@@ -149,13 +162,14 @@ public final class UIHelper {
         }
     }
 
-    /* ---------- setBleStatus ---------- */
-    public static void setBleStatus(EvenOsApi.Sides side, PairingStatus status) {
+    /* ---------- setBlePairingStatus ---------- */
+    public static void setBlePairingStatus(EvenOsApi.Sides side, PairingStatus status) {
         DeviceStatus sideStatus = (side == EvenOsApi.Sides.LEFT) ? statusLeft : statusRight;
         sideStatus.bonded = status;
         updateBleStatus(side);
     }
 
+    /* ---------- setBleConnectionStatus ---------- */
     public static void setBleConnectionStatus(EvenOsApi.Sides side, ConnectionStatus status) {
         DeviceStatus sideStatus = (side == EvenOsApi.Sides.LEFT) ? statusLeft : statusRight;
         sideStatus.connected = status;
@@ -168,28 +182,58 @@ public final class UIHelper {
 
         DeviceStatus sideStatus = (side == EvenOsApi.Sides.LEFT) ? statusLeft : statusRight;
 
-        String bondedStatus = sideStatus.bonded.name();
-        String connectedStatus = sideStatus.connected.name();
-
         String emoji = "⚪";
-        int color = Color.GRAY;
 
-        switch (sideStatus.bonded) {
-            case NOT_BONDED:     emoji = "🔴"; color = 0xFFE53935; break;
-            case BONDING:        emoji = "🟡"; color = 0xFFFFB300; break;
-            case BONDING_FAILED: emoji = "🟡"; color = 0xFFFFB300; break;
-            case ERROR:          emoji = "🔴"; color = 0xFFE53935; break;
-        }
-
-        if (sideStatus.connected == ConnectionStatus.CONNECTED) {
+        // Primeiro verifica o status de conexão se estiver BONDED
+        if (sideStatus.bonded == PairingStatus.BONDED) {
             switch (sideStatus.connected) {
-                case CONNECTED:   emoji = "🟡"; color = 0xFF43A047; break;
-                case INITIALIZED: emoji = "🟢"; color = 0xFF43A047; break;
-                case DISCONNECTED: emoji = "🔴"; color = 0xFFE53935; break;
+                case CONNECTING:
+                    emoji = "🟡";
+                    break;
+                case CONNECTED:
+                    emoji = "🟡";
+                    break;
+                case INITIALIZED:
+                    emoji = "🟢";
+                    break;
+                case DISCONNECTED:
+                    emoji = "⚪";
+                    break;
+                default:
+                    emoji = "⚪";
+                    break;
+            }
+        } else {
+            // Se não estiver BONDED, verifica o status de pairing
+            android.util.Log.d(TAG, "Status is not BONDED, checking pairing status");
+            switch (sideStatus.bonded) {
+                case NOT_BONDED:
+                    emoji = "⚪";
+                    break;
+                case BONDING:
+                    emoji = "🟡";
+                    break;
+                case BONDING_FAILED:
+                case ERROR:
+                    emoji = "🔴";
+                    break;
+                default:
+                    emoji = "⚪";
+                    break;
             }
         }
 
-        target.setText(String.format("%s %s %s", emoji, bondedStatus, connectedStatus));
+        int color = Color.parseColor("#808080");
+        if (emoji == "🟡") {
+            color = Color.parseColor("#FFD700");
+        } else if (emoji == "🟢") {
+            color = Color.parseColor("#008000");
+        } else if (emoji == "🔴") {
+            color = Color.parseColor("#FF0000");
+        }
+
+        target.setText(String.format("%s %s / %s",
+            emoji, sideStatus.bonded.name(), sideStatus.connected.name()));
         target.setTextColor(color);
     }
 

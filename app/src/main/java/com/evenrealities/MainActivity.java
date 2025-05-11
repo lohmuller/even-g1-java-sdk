@@ -79,7 +79,7 @@ public class MainActivity extends AppCompatActivity {
 
                 @Override
                 public void onPairingStatusUpdate(EvenOsApi.Sides side, BluetoothHelper.PairingStatus status) {
-                    UIHelper.setBleStatus(side, status);
+                    UIHelper.setBlePairingStatus(side, status);
                 }
 
                 @Override
@@ -93,13 +93,13 @@ public class MainActivity extends AppCompatActivity {
                     connectionManager.getLeftConnection().setConnectionStateListener(state -> {
                         UIHelper.appendLog(TAG, "Left connection state changed: " + state);
                         if (state == Connection.ConnectionState.DISCONNECTED) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Disconnected)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.LEFT, BluetoothHelper.ConnectionStatus.DISCONNECTED);
                         } else if (state == Connection.ConnectionState.CONNECTING) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connecting...)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.LEFT, BluetoothHelper.ConnectionStatus.CONNECTING);
                         } else if (state == Connection.ConnectionState.CONNECTED) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Connected)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.LEFT, BluetoothHelper.ConnectionStatus.CONNECTED);
                         } else if (state == Connection.ConnectionState.INITIALIZED) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.LEFT, "Bonded (Initialized)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.LEFT, BluetoothHelper.ConnectionStatus.INITIALIZED);
                         }
                     });
 
@@ -107,20 +107,20 @@ public class MainActivity extends AppCompatActivity {
                     connectionManager.getRightConnection().setConnectionStateListener(state -> {
                         UIHelper.appendLog(TAG, "Right connection state changed: " + state);
                         if (state == Connection.ConnectionState.DISCONNECTED) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Disconnected)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.RIGHT, BluetoothHelper.ConnectionStatus.DISCONNECTED);
                         } else if (state == Connection.ConnectionState.CONNECTING) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connecting...)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.RIGHT, BluetoothHelper.ConnectionStatus.CONNECTING);
                         } else if (state == Connection.ConnectionState.CONNECTED) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Connected)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.RIGHT, BluetoothHelper.ConnectionStatus.CONNECTED);
                         } else if (state == Connection.ConnectionState.INITIALIZED) {
-                            UIHelper.updateBluetoothStatus(EvenOsApi.Sides.RIGHT, "Bonded (Initialized)");
+                            UIHelper.setBleConnectionStatus(EvenOsApi.Sides.RIGHT, BluetoothHelper.ConnectionStatus.INITIALIZED);
                         }
                     });
 
                     // Handle successful connection
                     connectionManager.addResponseListener(api.onBlePairedSuccess(), (data, side) -> {
                         UIHelper.appendLog(TAG, "Connection successful for " + side);
-                        UIHelper.updateBluetoothStatus(side, "Bonded (Connected)");
+                        UIHelper.setBleConnectionStatus(side, BluetoothHelper.ConnectionStatus.CONNECTED);
                         connectionTimeoutHandler.removeCallbacks(connectionTimeoutRunnable);
                     });
 
