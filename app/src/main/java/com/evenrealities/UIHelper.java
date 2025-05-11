@@ -40,12 +40,19 @@ public class UIHelper {
 
         // Create log section with better visibility
         scrollView = new ScrollView(activity);
-        scrollView.setFillViewport(true); // Make scroll view fill its container
+        scrollView.setFillViewport(true);
+        scrollView.setFocusable(true);
+        scrollView.setFocusableInTouchMode(true);
+        
         logTextView = new TextView(activity);
         logTextView.setPadding(16, 16, 16, 16);
         logTextView.setTextSize(12);
         logTextView.setBackgroundColor(Color.parseColor("#F5F5F5"));
         logTextView.setTextColor(Color.BLACK);
+        logTextView.setFocusable(true);
+        logTextView.setFocusableInTouchMode(true);
+        logTextView.setMovementMethod(new android.text.method.ScrollingMovementMethod());
+        
         scrollView.addView(logTextView);
         
         // Add a title for the log section
@@ -96,9 +103,7 @@ public class UIHelper {
         );
         params.setMargins(8, 0, 8, 8);
         root.addView(scrollView, params);
-        
-        // Add initial log message
-        appendLog("System", "Log system initialized");
+
     }
 
     private static void toggleTag(String tag, Button button) {
@@ -127,17 +132,48 @@ public class UIHelper {
     private static void refreshLogDisplay() {
         if (logTextView != null) {
             logTextView.post(() -> {
+                // Clear current text
                 logTextView.setText("");
+                
+                // Get all lines from buffer
                 String[] lines = logBuffer.toString().split("\n");
+                SpannableStringBuilder filteredBuilder = new SpannableStringBuilder();
+                
+                // Process each line
                 for (String line : lines) {
                     for (String tag : enabledTags) {
                         if (line.contains(tag + ":")) {
-                            logTextView.append(line + "\n");
+                            // Extract tag and message
+                            int tagEnd = line.indexOf(":") + 1;
+                            String tagPart = line.substring(0, tagEnd);
+                            String messagePart = line.substring(tagEnd);
+                            
+                            // Create tag span
+                            SpannableString tagStr = new SpannableString(tagPart);
+                            tagStr.setSpan(new ForegroundColorSpan(Color.BLUE), 0, tag.length(), 0);
+                            filteredBuilder.append(tagStr);
+                            
+                            // Create message span
+                            SpannableString msgStr = new SpannableString(messagePart);
+                            if (messagePart.toLowerCase().contains("error")) {
+                                msgStr.setSpan(new ForegroundColorSpan(Color.RED), 0, messagePart.length(), 0);
+                            } else if (messagePart.toLowerCase().contains("success")) {
+                                msgStr.setSpan(new ForegroundColorSpan(Color.GREEN), 0, messagePart.length(), 0);
+                            }
+                            filteredBuilder.append(msgStr);
+                            filteredBuilder.append("\n");
                             break;
                         }
                     }
                 }
-                scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
+                
+                // Set the filtered text
+                logTextView.setText(filteredBuilder);
+                
+                // Scroll to bottom if needed
+                if (isScrolledToBottom()) {
+                    scrollView.post(() -> scrollView.fullScroll(ScrollView.FOCUS_DOWN));
+                }
             });
         }
     }
@@ -196,19 +232,7 @@ public class UIHelper {
 
         // Update UI if tag is enabled
         if (enabledTags.contains(tag)) {
-            if (logTextView != null) {
-                logTextView.post(() -> {
-                    logTextView.append(builder);
-                    // Only auto-scroll if already at bottom
-                    if (isScrolledToBottom()) {
-                        scrollView.post(() -> {
-                            scrollView.fullScroll(ScrollView.FOCUS_DOWN);
-                        });
-                    }
-                });
-            } else {
-                android.util.Log.e("UIHelper", "logTextView is null!");
-            }
+            refreshLogDisplay();
         }
     }
 
