@@ -9,17 +9,15 @@ public class EvenOsCommand<T> {
     public final byte[][] requestPackets;
     public final byte[] responseHeader;
     public final EvenOsApi.Sides sides;
-    public final Function<byte[], T> onDataReceived;
     public final CompletableFuture<T> future = new CompletableFuture<>();
 
-    public EvenOsCommand(byte[][] requestPackets, byte[] responseHeader, EvenOsApi.Sides sides, Function<byte[], T> onDataReceived) {
+    public EvenOsCommand(byte[][] requestPackets, byte[] responseHeader, EvenOsApi.Sides sides) {
         this.requestPackets = requestPackets;
         this.responseHeader = responseHeader;
         this.sides = sides;
-        this.onDataReceived = onDataReceived;
     }
 
-    public EvenOsCommand(byte[] singleRequest, byte[] responseHeader, EvenOsApi.Sides sides, Function<byte[], T> onDataReceived) {
-        this(new byte[][]{ singleRequest }, responseHeader, sides, onDataReceived);
+    public EvenOsCommand(byte[] singleRequest, byte[] responseHeader, EvenOsApi.Sides sides) {
+        this(new byte[][]{ singleRequest }, responseHeader, sides);
     }
 }

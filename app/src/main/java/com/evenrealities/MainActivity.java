@@ -85,8 +85,8 @@ public class MainActivity extends AppCompatActivity {
                 @Override
                 public void onDevicesBonded(BluetoothDevice left, BluetoothDevice right) {
                     UIHelper.appendLog(TAG, "Devices bonded. Starting connection process...");
-                    api = new EvenOs_1_5_0();
                     connectionManager = new ConnectionManager(MainActivity.this, left, right);
+                    api = new EvenOsApi(connectionManager);
                     isConnectionError = false;
 
                     // Monitor left device connection state
@@ -237,7 +237,7 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
         try {
-            Object result = connectionManager.sendAndWait(api.initialize(), 1000);
+            boolean result = api.initialize();
             UIHelper.appendLog(TAG, "Initialize command completed with result: " + result);
         } catch (Exception e) {
             UIHelper.appendLog(TAG, "Error sending initialize command: " + e.getMessage());
@@ -250,7 +250,7 @@ public class MainActivity extends AppCompatActivity {
      */
     private void sendText() {
         UIHelper.appendLog(TAG, "Sending test text message...");
-        sendCommand("sendText", api.sendText("Hello, World!"));
+        api.sendText("Hello, World!");
     }
 
     /**

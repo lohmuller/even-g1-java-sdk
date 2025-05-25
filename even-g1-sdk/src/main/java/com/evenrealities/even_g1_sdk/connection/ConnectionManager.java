@@ -43,7 +43,6 @@ public class ConnectionManager {
 
     private final Connection leftConnection;
     private final Connection rightConnection;
-    private EvenOsApi evenOsApi;
     private final int maxRetries = 3;
 
     private final CommandQueue commandQueue;
@@ -76,10 +75,6 @@ public class ConnectionManager {
     public static boolean isRightDevice(BluetoothDevice device) {
         String name = device.getName();
         return name != null && name.startsWith("Even G1_81_R_");
-    }
-    
-    public void setEvenOsApi(EvenOsApi evenOsApi) {
-        this.evenOsApi = evenOsApi;
     }
 
     public Connection getLeftConnection() {
@@ -221,11 +216,11 @@ public class ConnectionManager {
         for (EvenOsCommand matching : matches) {
             try {
                 Log.d(TAG, "onDataReceived: Processing command: " + matching);
-                Object result = matching.onDataReceived.apply(data);
-                matching.future.complete(result);
+                // Não há mais onDataReceived. Apenas complete o future com os dados recebidos.
+                matching.future.complete(data);
             } catch (Exception e) {
                 Log.e(TAG, "onDataReceived: Error processing command: " + matching, e);
-                matching.future.completeExceptionally(e);
+                matching.future.completeExceptionally(e); 
             }
             this.commandQueue.remove(matching, side.name());
         }
