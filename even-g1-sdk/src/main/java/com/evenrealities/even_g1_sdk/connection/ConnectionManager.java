@@ -122,7 +122,7 @@ public class ConnectionManager {
     }
 
     /**
-     * Envia um comando para o dispositivo e retorna a resposta
+     * Send Command to the device and return the response
      * @param sendCommand
      * @return
      */
@@ -149,7 +149,7 @@ public class ConnectionManager {
             this.commandQueue.add(sendCommand);
             Log.d(TAG, "sendCommand: Command added to queue: " + sendCommand);
         }
-        if (sendCommand.sides == EvenOsApi.Sides.LEFT || sendCommand.sides == EvenOsApi.Sides.BOTH) {
+        if (sendCommand.sides.matchesLeft()) {
             for (byte[] packet : sendCommand.requestPackets) {
                 Log.d(TAG, "sendCommand: Sending packet to LEFT: " + Arrays.toString(packet));
                 this.leftConnection.send(packet);
@@ -157,7 +157,7 @@ public class ConnectionManager {
         }
 
         //@TODO: Should wait for the command to be sent on the left connection before sending to the right?
-        if (sendCommand.sides == EvenOsApi.Sides.RIGHT || sendCommand.sides == EvenOsApi.Sides.BOTH) {
+        if (sendCommand.sides.matchesRight()) {
             for (byte[] packet : sendCommand.requestPackets) {
                 Log.d(TAG, "sendCommand: Sending packet to RIGHT: " + Arrays.toString(packet));
                 this.rightConnection.send(packet);
@@ -212,17 +212,18 @@ public class ConnectionManager {
 
     private void onDataReceived(byte[] data, EvenOsApi.Sides side) {
         boolean isUnknownCommand = true;
-        EvenOsCommand[] matches = this.commandQueue.findMatching(data, side);
+
+        // Check if the command is in the queue
+        List<EvenOsCommand> matches = this.commandQueue.findMatching(data, side);
         for (EvenOsCommand matching : matches) {
             try {
                 Log.d(TAG, "onDataReceived: Processing command: " + matching);
-                // Não há mais onDataReceived. Apenas complete o future com os dados recebidos.
                 matching.future.complete(data);
             } catch (Exception e) {
                 Log.e(TAG, "onDataReceived: Error processing command: " + matching, e);
                 matching.future.completeExceptionally(e); 
             }
-            this.commandQueue.remove(matching, side.name());
+            this.commandQueue.remove(matching, side);
         }
         
         // TODO: Padronizar uso de responseHandlers ou responseListeners
@@ -238,7 +239,7 @@ public class ConnectionManager {
             }
         }
 
-        if (matches.length == 0 && isUnknownCommand) {
+        if (matches.isEmpty() && isUnknownCommand) {
             StringBuilder hex = new StringBuilder();
             for (byte b : data) hex.append(String.format("%02X ", b));
             Log.d(TAG, "onDataReceived: Unknown Command received on side " + side + ": [" + hex.toString().trim() + "]");

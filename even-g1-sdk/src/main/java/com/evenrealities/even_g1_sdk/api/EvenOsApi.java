@@ -40,7 +40,14 @@ public class EvenOsApi {
     }
 
     public enum Sides {
-        LEFT, RIGHT, BOTH, EITHER;
+        LEFT, RIGHT, BOTH;
+        public boolean matchesLeft() {
+            return this == LEFT || this == BOTH;
+        }
+
+        public boolean matchesRight() {
+            return this == RIGHT || this == BOTH;
+        }
     }
 
     public enum DashboardMode {
