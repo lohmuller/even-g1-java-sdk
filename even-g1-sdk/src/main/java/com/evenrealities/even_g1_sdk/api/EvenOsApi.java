@@ -139,7 +139,28 @@ public class EvenOsApi {
         byte[] responseHeader = { requestBytes[0] };
         byte[] responseData = this.sendCommand(requestBytes, responseHeader, Sides.BOTH);
         return responseData != null && responseData.length > 0 && (responseData[0] == (byte)0xC9);
-    }   
+    } 
+
+
+    public void setDashboardPosition(int height, int depth){
+        // clamp height and depth to 0-8 and 1-9 respectively:
+        height = Math.max(0, Math.min(height, 8));
+        depth = Math.max(1, Math.min(depth, 9));
+
+        int globalCounter = 0;// TODO: must be incremented each time this command is sent!
+
+        ByteBuffer buffer = ByteBuffer.allocate(8);
+        buffer.put((byte) 0x26);        // Command for dashboard height
+        buffer.put((byte) 0x08);        // Length
+        buffer.put((byte) 0x00);        // Sequence
+        buffer.put((byte) (globalCounter & 0xFF));// counter
+        buffer.put((byte) 0x02);        // Fixed value
+        buffer.put((byte) 0x01);        // State ON
+        buffer.put((byte) height);      // Height value (0-8)
+        buffer.put((byte) depth);       // Depth value (0-9)
+        
+        this.connectionManager.sendCommand(new EvenOsCommand<byte[]>(buffer.array(), null, Sides.BOTH));
+    }  
 
     /** 
      * Set microphone enabled
@@ -200,6 +221,14 @@ public class EvenOsApi {
         return responseData != null && responseData.length > 0 && (responseData[0] == (byte)0xC9);
     }
 
+    public void quickRestart() {
+        byte[] requestBytes = new byte[] {
+            (byte) 0x23,
+            (byte) 0x72 // Maybe there is more options to send?
+        };
+        this.connectionManager.sendCommand(new EvenOsCommand<byte[]>(requestBytes, null, Sides.BOTH));
+    }
+
     /**
      * Get firmware info
      * @return (EvenOsCommand)
@@ -246,6 +275,7 @@ public class EvenOsApi {
     public int getBatteryInfo(Sides side) {
         byte[] requestBytes = new byte[] {
             (byte) 0x2C,
+            (byte) 0x01, // use 0x02 for iOS
         };
         byte[] responseHeader = { requestBytes[0] };
         byte[] responseData = this.sendCommand(requestBytes, responseHeader, side);
